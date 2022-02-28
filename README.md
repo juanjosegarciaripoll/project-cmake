@@ -13,8 +13,11 @@ The package `project-cmake` incorporates the required logic to understand that a
    C-x p C   -  project-cmake-configure
    C-x p m   -  project-cmake-build
    C-x p t   -  project-cmake-test
+   C-x p s  -  project-cmake-shell
 
 `project-cmake` can also help LSP servers by providing them with the right configuration flags on how to locate a project's build structure and build flags.  At this moment, this integration is only provided for `eglot` (see [project webage](https://github.com/joaotavora/eglot)), via the function `project-cmake-eglot-integration` which hooks into `eglot-ensure` and updates `eglot-server-programs`.
+
+`project-cmake-shell` is a wrapper around `project-shell` that enables using shells and environments appropriate to the development kit. For instance, if building with MINGW64 under the UCRT64 ABI, it will invoke MSYS's copy of `bash` with appropriate arguments (namely login and interactive shell without the readline library).
 
 ## Usage
 

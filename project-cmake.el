@@ -122,7 +122,6 @@ at the root of the project's directory.")
         output)
     (with-temp-buffer
       (unless (zerop (apply #'call-process program nil (current-buffer) nil args))
-		(message "%s" (buffer-string))
 		(error "Unable to guess environment values from %s" program))
       (goto-char (point-min))
       (while (re-search-forward "^[A-Za-z0-9_]*=.*$" nil t)
@@ -152,18 +151,33 @@ mingw64, mingw32 or ucrt64."
                                            (concat "MSYSTEM="
                                                    msys2-type))))
             (project-cmake-guess-environment (project-cmake-msys2-bash)
-                                             "-l" "-i" "-c" "cmd.exe /c set"))))
+                                             "-l" "-c" "cmd.exe /c set"))))
     (cl-set-difference msys2-environment default-environment)))
 
 (defun project-cmake-msys2-path (type)
   (let ((path (expand-file-name
-               (plist-get '(ucrt64 "ucrt64/bin"
-                            mingw64 "mingw64/bin"
-                            mingw32 "mingw32/bin"
-                            msys "usr/bin")
-                          type)
+               (or (plist-get '(ucrt64 "ucrt64/bin"
+								mingw64 "mingw64/bin"
+								mingw32 "mingw32/bin"
+								msys "usr/bin")
+							  type)
+				   (error "Unknown MSYS2 backend type %S" type))
                project-cmake-msys2-root)))
     (and (file-exists-p path) path)))
+
+(defcustom project-cmake-msys2-bash-args '("--noediting" "-l" "-i")
+  "Options to invoke MSYS2 bash. Note that you will see an error
+message about ioctl that can be ignored.")
+
+(defun project-cmake-msys2-shell-launcher (type)
+  (let* ((msys2-path (project-cmake-msys2-path 'msys))
+		 (shell-path (expand-file-name "bash.exe" msys2-path)))
+	(and shell-path
+		 (lambda (function-to-call)
+		   (let* ((explicit-shell-file-name shell-path)
+				  (process-environment (cons "PS1=$ " process-environment))
+				  (explicit-bash.exe-args project-cmake-msys2-bash-args))
+			 (funcall function-to-call))))))
 
 (defun project-cmake-msys2-bash ()
   (let ((msys-path (project-cmake-msys2-path 'msys)))
@@ -173,16 +187,18 @@ mingw64, mingw32 or ucrt64."
   (when (project-cmake-msys2-path 'msys)
 	(let (all-kits)
       (dolist (msys-type '(msys mingw64 mingw32 ucrt64))
-		(let ((path (project-cmake-msys2-path msys-type)))
-          (when path
-			;; Identification of the system may fail
-			(condition-case nil
-				(let* ((kit-name (concat "msys2-" (symbol-name msys-type)))
-					   (environment (project-cmake-guess-msys2-environment msys-type))
-					   (exec-path (list path)))
-				  (push (project-cmake-build-kit kit-name environment)
-						all-kits))
-			  (error nil)))))
+		(let ((kit-name (concat "msys2-" (symbol-name msys-type)))
+			  (path (project-cmake-msys2-path msys-type)))
+          (if path
+			  ;; Identification of the system may fail
+			  (condition-case condition
+				  (let* ((environment (project-cmake-guess-msys2-environment msys-type))
+						 (shell-launcher (project-cmake-msys2-shell-launcher msys-type))
+						 (exec-path (list path)))
+					(push (project-cmake-build-kit kit-name environment shell-launcher)
+						  all-kits))
+				(error (message "Failed when configuring kit %s with condition %s" kit-name condition)))
+			(message "Cannot find kit %s" kit-name))))
 	  all-kits)))
 
 
@@ -202,7 +218,7 @@ mingw64, mingw32 or ucrt64."
 				all-kits)))))
 	all-kits)
 
-(defun project-cmake-build-kit (kit-name &optional environment)
+(defun project-cmake-build-kit (kit-name &optional environment shell-launcher)
   `(,(intern kit-name)
 	,@(and environment
 		`(:environment ,environment))
@@ -215,6 +231,8 @@ mingw64, mingw32 or ucrt64."
     ,@(let* ((clangd (executable-find "clangd")))
         (and clangd
              `(:clangd ,clangd)))
+	,@(and shell-launcher
+		   `(:shell ,shell-launcher))
     ,@(if (executable-find "ninja")
           `(:cmake-generator "Ninja")
 		`(:cmake-generator "Unix Makefiles"))
@@ -417,6 +435,7 @@ it will contain all files for CTest."
                (y-or-n-p (format "Delete directory %s" build-directory)))
       (delete-directory build-directory t))))
 
+
 ;;;
 ;;; Top-level user interaction
 ;;;
@@ -430,7 +449,6 @@ directory to start from scratch."
 	(project-cmake-remove-build-directory))
   (let* ((compile-command (project-cmake-kit-configure-command))
          (compilation-environment (project-cmake-kit-compilation-environment)))
-	(message "compilation-environment:\n%S" compilation-environment)
     (project-compile)))
 
 (defun project-cmake-build (&optional clean)
@@ -454,6 +472,14 @@ scratch, preserving the existing configuration."
   (let* ((compile-command (project-cmake-kit-install-command))
          (compilation-environment (project-cmake-kit-compilation-environment)))
     (project-compile)))
+
+(defun project-cmake-shell ()
+  "Run a shell which is appropriate for the given compilation kit."
+  (interactive)
+  (let ((shell-launcher (project-cmake-kit-value :shell)))
+	(if shell-launcher
+		(funcall shell-launcher 'project-shell)
+	  (project-shell))))
 
 (defun project-cmake-test ()
   "Run the tests in a using CTest and the current kit."
@@ -481,5 +507,6 @@ scratch, preserving the existing configuration."
 (define-key project-prefix-map "t" 'project-cmake-test)
 (define-key project-prefix-map "m" 'project-cmake-build)
 (define-key project-prefix-map "C" 'project-cmake-configure)
+(define-key project-prefix-map "s" 'project-cmake-shell)
 
 (provide 'project-cmake)
