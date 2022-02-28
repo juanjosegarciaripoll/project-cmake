@@ -191,11 +191,20 @@ message about ioctl that can be ignored.")
 				  (push name distributions))))
 			distributions))))))
 
+(defvar explicit-wsl.exe-args nil)
+
 (defun project-cmake-wsl-shell-launcher (wsl-type)
   (lambda (function-to-call)
 	(let* ((explicit-shell-file-name "wsl.exe")
 		   (explicit-wsl.exe-args (cl-list* "-d" wsl-type project-cmake-wsl-shell-args)))
+	  (message "%S %S" explicit-shell-file-name explicit-wsl.exe-args)
 	  (funcall function-to-call))))
+
+(defun project-cmake-wsl-path (path)
+  (let ((path (subst-char-in-string ?\\ ?/ (expand-file-name path))))
+	(if (zerop (string-match "[a-z]:" path))
+		(concat "/mnt/" (substring path 0 1) (substring path 2))
+	  path)))
 
 (defun project-cmake-wsl-kits ()
   (when (project-cmake-msys2-path 'msys)
@@ -205,11 +214,13 @@ message about ioctl that can be ignored.")
 		  ;; Identification of the system may fail
 		  (condition-case condition
 			  (let* ((shell-launcher
-					  (project-cmake-wsl-shell-launcher wsl-type)))
-				(push (project-cmake-build-kit kit-name
-											   nil
-											   shell-launcher
-											   'project-cmake-wsl-exec-path)
+					  (project-cmake-wsl-shell-launcher wsl-type))
+					 (kit (project-cmake-build-kit kit-name
+												   nil
+												   shell-launcher
+												   'project-cmake-wsl-exec-path)))
+				(push (append kit `(:command-prefix ("wsl" "-d" ,wsl-type)
+									:convert-path project-cmake-wsl-path))
 					  all-kits))
 			(error (message "Failed when configuring kit %s with condition %s"
 							kit-name condition)))))
@@ -255,6 +266,8 @@ mingw64, mingw32 or ucrt64."
 (defcustom project-cmake-msys2-bash-args '("--noediting" "-l" "-i")
   "Options to invoke MSYS2 bash. Note that you will see an error
 message about ioctl that can be ignored.")
+
+(defvar explicit-bash.exe-args nil)
 
 (defun project-cmake-msys2-shell-launcher (type)
   (let* ((msys2-path (project-cmake-msys2-path 'msys))
@@ -343,20 +356,27 @@ message about ioctl that can be ignored.")
   (interactive)
   (let (all-kits)
 	(when (eq system-type 'windows-nt)
-	  (setq all-kits (project-cmake-msys2-kits)))
+	  (setq all-kits (append (project-cmake-msys2-kits)
+							 (project-cmake-wsl-kits))))
 	(when (member system-type '(gnu gnu/linux gnu/kfreebsd darwin))
 	  (setq all-kits (project-cmake-unix-kits)))
     (unless all-kits
       (warn "No CMake/C++/C kits found in this computer"))
     (setq project-cmake-kits all-kits)))
 
+(defun project-cmake-kit-convert-path (path)
+  (funcall (or (project-cmake-kit-value :convert-path)
+			   'identity)
+		   path))
+
 (defun project-cmake-kit-build-directory ()
-  (expand-file-name (or project-cmake-build-directory-name
-                        (concat "build-" (symbol-name (project-cmake-kit-name))))
-                    (project-root (project-current t))))
+  (project-cmake-kit-convert-path
+   (expand-file-name (or project-cmake-build-directory-name
+                         (concat "build-" (symbol-name (project-cmake-kit-name))))
+                     (project-root (project-current t)))))
 
 (defun project-cmake-kit-source-directory ()
-  (expand-file-name (project-root (project-current t))))
+  (project-cmake-kit-convert-path (project-root (project-current t))))
 
 (defun project-cmake-kit-name ()
   "Return the symbol for the selected kit."
@@ -381,13 +401,24 @@ selected kit, or NIL if it does not exist."
 (defun project-cmake-kit-cmake-command (&rest arguments)
   (let ((cmake (project-cmake-kit-value :cmake)))
     (if cmake
-        (combine-and-quote-strings
-         (append (list cmake)
-                 (project-cmake-kit-value :cmake-flags)
-                 arguments))
+        (append (list cmake)
+                (project-cmake-kit-value :cmake-flags)
+                arguments)
       (error "Cannot find CMake in current kit %s\nKit configuration:\n%s"
              (project-cmake-kit-name)
 			 (project-cmake-kit)))))
+
+(defun project-cmake-kit-compile (command-list)
+  (let* ((command-wrapper (project-cmake-kit-value :command-prefix))
+		 (compile-command (combine-and-quote-strings
+						   (append command-wrapper command-list)))
+		 (compilation-environment (project-cmake-kit-compilation-environment))
+		 (compilation-buffer-name-function
+          (or project-compilation-buffer-name-function
+              compilation-buffer-name-function))
+		 (default-directory (project-root (project-current t))))
+	(message "compile-command: %S" compile-command)
+	(call-interactively #'compile)))
 
 
 ;;;
@@ -538,9 +569,7 @@ directory to start from scratch."
   (interactive "P")
   (when clean
 	(project-cmake-remove-build-directory))
-  (let* ((compile-command (project-cmake-kit-configure-command))
-         (compilation-environment (project-cmake-kit-compilation-environment)))
-    (project-compile)))
+  (project-cmake-kit-compile (project-cmake-kit-configure-command)))
 
 (defun project-cmake-build (&optional clean)
   "Build a project tree using CMake and the current kit.  If
@@ -549,9 +578,7 @@ scratch, preserving the existing configuration."
   (interactive "P")
   (unless (project-cmake-ensure-configured)
 	(error "Cannot build project that has not been configured first."))
-  (let* ((compile-command (project-cmake-kit-build-command clean))
-         (compilation-environment (project-cmake-kit-compilation-environment)))
-    (project-compile)))
+  (project-cmake-kit-compile (project-cmake-kit-build-command)))
 
 (defun project-cmake-install ()
   "Build a project tree using CMake and the current kit.  If
@@ -560,9 +587,7 @@ scratch, preserving the existing configuration."
   (interactive "P")
   (unless (project-cmake-ensure-configured)
 	(error "Cannot build project that has not been configured first."))
-  (let* ((compile-command (project-cmake-kit-install-command))
-         (compilation-environment (project-cmake-kit-compilation-environment)))
-    (project-compile)))
+  (project-cmake-kit-compile (project-cmake-kit-install-command)))
 
 (defun project-cmake-shell ()
   "Run a shell which is appropriate for the given compilation kit."
