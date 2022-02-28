@@ -116,6 +116,12 @@ following fields:
 
       Location of Clangd in this kit.  Used for integration with
       `eglot` (see `project-cmake-eglot-integration`)
+
+  :SHELL
+
+      A single-argument function that defines the value of
+      explicit-shell-file-name before calling project-shell,
+      to select the right shell for this kit.
 ")
 
 (defcustom project-cmake-ctest-buffer "*ctest*"
@@ -142,6 +148,72 @@ at the root of the project's directory."
       (while (re-search-forward "^[A-Za-z0-9_]*=.*$" nil t)
         (push (match-string-no-properties 0) output)))
     output))
+
+
+;;;
+;;; INTEGRATION WITH WSL
+;;;
+;;; The following functions provide the detection and integration of MSYS2 /
+;;; MINGW64 environments for building and compiling C and C++ codes.  Notably,
+;;; the software in these packages requires environment variables that help them
+;;; detect where other software components are stored.  Those environment
+;;; variables cannot be set globally in Emacs and are instead stored in the
+;;; kit's environment fields.
+;;;
+
+(defcustom project-cmake-wsl-shell-args '("bash" "--noediting" "-l" "-i")
+  "Options to invoke MSYS2 bash. Note that you will see an error
+message about ioctl that can be ignored.")
+
+(defun project-cmake-wsl-invoke (&rest arguments)
+  (if (executable-find "wsl")
+	  (zerop (apply #'call-process "wsl" nil (current-buffer) nil arguments))
+	nil))
+
+(defun project-cmake-wsl-exec-path (executable)
+  (with-temp-buffer
+	(when (project-cmake-wsl-invoke "which" executable)
+	  (car (split-string (buffer-string) "\n")))))
+
+(defun project-cmake-wsl-list-distributions ()
+  "Return a list of strings with all installed WSL distributions"
+  (let ((project-environment))
+	(with-temp-buffer
+	  ;; The WSL by itself uses a weird encoding. However,
+	  ;; Unix code invoked by it will use simpler encodings.
+	  (let ((coding-system-for-read 'utf-16le)
+			(coding-system-for-write 'utf-16le))
+		(when (project-cmake-wsl-invoke "-l")
+		  (let (distributions)
+			(dolist (line (cdr (split-string (buffer-string) "\n")))
+			  (let ((name (car (split-string line " "))))
+				(unless (zerop (length name))
+				  (push name distributions))))
+			distributions))))))
+
+(defun project-cmake-wsl-shell-launcher (wsl-type)
+  (lambda (function-to-call)
+	(let* ((explicit-shell-file-name "wsl.exe")
+		   (explicit-wsl.exe-args (cl-list* "-d" wsl-type project-cmake-wsl-shell-args)))
+	  (funcall function-to-call))))
+
+(defun project-cmake-wsl-kits ()
+  (when (project-cmake-msys2-path 'msys)
+	(let (all-kits)
+      (dolist (wsl-type (project-cmake-wsl-list-distributions))
+		(let ((kit-name (concat "wsl-" (downcase wsl-type))))
+		  ;; Identification of the system may fail
+		  (condition-case condition
+			  (let* ((shell-launcher
+					  (project-cmake-wsl-shell-launcher wsl-type)))
+				(push (project-cmake-build-kit kit-name
+											   nil
+											   shell-launcher
+											   'project-cmake-wsl-exec-path)
+					  all-kits))
+			(error (message "Failed when configuring kit %s with condition %s"
+							kit-name condition)))))
+	  all-kits)))
 
 
 ;;;
@@ -233,25 +305,29 @@ message about ioctl that can be ignored.")
 				all-kits)))))
 	all-kits)
 
-(defun project-cmake-build-kit (kit-name &optional environment shell-launcher)
-  `(,(intern kit-name)
-	,@(and environment
-		`(:environment ,environment))
-    ,@(let* ((cmake (executable-find "cmake")))
-        (and cmake
-             `(:cmake ,cmake)))
-    ,@(let* ((ctest (executable-find "ctest")))
-        (and ctest
-             `(:ctest ,ctest)))
-    ,@(let* ((clangd (executable-find "clangd")))
-        (and clangd
-             `(:clangd ,clangd)))
-	,@(and shell-launcher
-		   `(:shell ,shell-launcher))
-    ,@(if (executable-find "ninja")
-          `(:cmake-generator "Ninja")
-		`(:cmake-generator "Unix Makefiles"))
-    ))
+(defun project-cmake-build-kit (kit-name &optional environment shell-launcher
+										 exec-find)
+  (cl-labels ((kit-exec-find
+			   (name)
+			   (funcall (or exec-find 'executable-find) name)))
+	`(,(intern kit-name)
+	  ,@(and environment
+			 `(:environment ,environment))
+      ,@(let* ((cmake (kit-exec-find "cmake")))
+          (and cmake
+               `(:cmake ,cmake)))
+      ,@(let* ((ctest (kit-exec-find "ctest")))
+          (and ctest
+               `(:ctest ,ctest)))
+      ,@(let* ((clangd (kit-exec-find "clangd")))
+          (and clangd
+               `(:clangd ,clangd)))
+	  ,@(and shell-launcher
+			 `(:shell ,shell-launcher))
+      ,@(if (kit-exec-find "ninja")
+			`(:cmake-generator "Ninja")
+		  `(:cmake-generator "Unix Makefiles"))
+      )))
 
 
 ;;;
