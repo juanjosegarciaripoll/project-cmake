@@ -60,26 +60,37 @@
 
 (require 'project)
 
-(setq debug-on-error t)
+(defgroup project-cmake nil
+  "Project-assisted management of CMake builds.")
 
 (defcustom project-cmake-default-kit nil
   "Default C++ kit for building project.  It is a symbol naming one
-of the kits available in `project-cmake-kits`.")
+of the kits available in `project-cmake-kits`."
+  :type 'symbol
+  :safe #'symbolp)
 
 (defcustom project-cmake-config-args
   '("-DCMAKE_EXPORT_COMPILE_COMMANDS=1")
-  "Arguments when invoking CMake for configuration.")
+  "Arguments when invoking CMake for configuration."
+  :type '(repeat string)
+  :safe #'listp)
 
 (defcustom project-cmake-generator nil
-  "CMake generator and driver.")
+  "CMake generator and driver."
+  :type '(or nil string)
+  :safe (lambda (x) (or (stringp x) (null x))))
 
 (defcustom project-cmake-jobs nil
   "Number of jobs to use for building CMake projects.  If NIL,
 this option is ignored.  Otherwise it should be an integer larger
-than 0.")
+than 0."
+  :type '(or null integer)
+  :safe (lambda (x) (or (null x) (and (integerp x) (>= x 1)))))
 
 (defcustom project-cmake-msys2-root "c:/msys64"
-  "Location of the MSYS2 distribution.")
+  "Location of the MSYS2 distribution."
+  :type 'string
+  :safe #'stringp)
 
 (defcustom project-cmake-kits nil
   "CMake/C++/C build kits.  Ideally, it should be populated by
@@ -108,12 +119,16 @@ following fields:
 ")
 
 (defcustom project-cmake-ctest-buffer "*ctest*"
-  "Name of buffer where tests are run.")
+  "Name of buffer where tests are run."
+  :type 'string
+  :safe #'stringp)
 
 (defcustom project-cmake-build-directory-name nil
   "Where CMake will configure and build the project.  If NIL, it
 is derived from the kit's name.  Otherwise it is a path expanded
-at the root of the project's directory.")
+at the root of the project's directory."
+  :type '(or null string)
+  :type (lambda (x) (or (null x) (stringp x))))
 
 (defun project-cmake-guess-environment (&optional program &rest args)
   "Guess the environment variables from the current shell"
