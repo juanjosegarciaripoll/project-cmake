@@ -63,6 +63,10 @@ used during the manipulation of a project.")
   (push (cons project record) project-local-cache)
   record)
 
+(defun project-local-remove-record (project)
+  (setq project-local-cache (delq (project-local-cached-record project)
+								  project-local-cache)))
+
 (defun project-local-record-set (record variable value)
   (let ((field (assq variable record)))
 	(if field
@@ -155,6 +159,10 @@ project-local cache, that will have to be saved later on."
 					 (y-or-n-p (format "Save project local file %s?"
 									   (project-local-file-name project)))))
 		(project-local-write-definitions project record)))))
+
+(defun project-local-clear (&optional project)
+  (interactive)
+  (project-local-remove-record (or project (project-current t))))
 
 (add-to-list 'kill-emacs-hook 'project-local-save-records)
 
