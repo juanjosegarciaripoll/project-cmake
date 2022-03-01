@@ -63,14 +63,14 @@
 (defgroup project-cmake nil
   "Project-assisted management of CMake builds.")
 
-(defcustom project-cmake-default-kit nil
-  "Default C++ kit for building project.  It is a symbol naming one
-of the kits available in `project-cmake-kits`."
-  :type 'symbol
-  :safe #'symbolp)
+(defcustom project-cmake-kit nil
+  "C++ kit for building this project. It is recommended to leave
+unset and use `project-cmake-select-kit` to select a kit for each
+project."
+  :type '(or null symbol)
+  :safe (lambda (x) (or (null x) (symbolp x))))
 
-(defcustom project-cmake-config-args
-  '("-DCMAKE_EXPORT_COMPILE_COMMANDS=1")
+(defcustom project-cmake-config-args nil
   "Arguments when invoking CMake for configuration."
   :type '(repeat string)
   :safe #'listp)
@@ -376,12 +376,15 @@ message about ioctl that can be ignored.")
                      (project-root (project-current t)))))
 
 (defun project-cmake-kit-source-directory ()
-  (project-cmake-kit-convert-path (project-root (project-current t))))
+  (project-cmake-kit-convert-path
+   (expand-file-name (project-root (project-current t)))))
 
 (defun project-cmake-kit-name ()
   "Return the symbol for the selected kit."
-  (or project-cmake-default-kit
-      (car (cl-first project-cmake-kits))))
+  (or (project-local-value (project-current t)
+						   'project-cmake-kit)
+	  (call-interactively #'project-cmake-select-kit)
+	  (error "No build kit selected.")))
 
 (defun project-cmake-kit (&optional kit)
   "Return the definition (name with property list) for the
@@ -505,6 +508,7 @@ build directory (see `project-cmake-build-directory-name`) and
 the CMake generator."
   (apply #'project-cmake-kit-cmake-command
          "-G" (project-cmake-guess-generator)
+		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
          (concat "-H" (project-cmake-kit-source-directory))
          (concat "-B" (project-cmake-kit-build-directory))
          project-cmake-config-args))
@@ -617,6 +621,22 @@ scratch, preserving the existing configuration."
              (or (project-cmake-kit-value :ctest) "ctest")
              ctest-args))))
 
+(defun project-cmake-select-kit (kit-name)
+  "Select a kit for this project."
+  (interactive
+   (let ((all-kits (project-local-value (project-current t)
+										'project-cmake-kits)))
+	 (when (and (null all-kits)
+				(y-or-n-p "Scan computer for build kits?"))
+	   (setq all-kits (project-cmake-scan-kits)))
+	 (unless all-kits
+	   (error "There are no build kits to choose from in this computer."))
+	 (list (completing-read "Project build kit:"
+							(mapcar 'car all-kits)))))
+  (when kit-name
+	(project-local-set (project-current t) 'project-cmake-kit (intern kit-name))))
+
+
 ;;
 ;; Default key bindings into the `project` map
 ;;
@@ -624,5 +644,6 @@ scratch, preserving the existing configuration."
 (define-key project-prefix-map "m" 'project-cmake-build)
 (define-key project-prefix-map "C" 'project-cmake-configure)
 (define-key project-prefix-map "s" 'project-cmake-shell)
+(define-key project-prefix-map "SK" 'project-cmake-select-kit)
 
 (provide 'project-cmake)
