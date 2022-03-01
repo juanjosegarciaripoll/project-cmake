@@ -310,13 +310,19 @@ message about ioctl that can be ignored.")
 ;;;
 
 (defun project-cmake-unix-kits ()
-  (let (all-kits)
-    (dolist (compiler '("gcc" "clang"))
-	  (when (executable-find compiler)
-		(let ((kit-name (concat "unix-" compiler)))
-          (push (project-cmake-build-kit kit-name)
-				all-kits)))))
-	all-kits)
+  (let* ((all-kits (list (project-cmake-build-kit "unix")))
+		 (compiler-names '("gcc" "clang" "icc"))
+		 (all-compilers (delq nil (mapcar 'executable-find compiler-names))))
+	(when (> (length all-compilers) 1)
+	  ;; If there are multiple compilers, create specialized kits
+      (dolist (compiler all-compilers)
+		(let* ((kit-name (concat "unix-" (file-name-base compiler)))
+			   (environment (cl-list* (format t "CC=%s" compiler)
+									  (format t "CXX=%s" compiler)
+									  project-environment)))
+          (push (project-cmake-build-kit kit-name environment)
+				all-kits))))
+	all-kits))
 
 (defun project-cmake-build-kit (kit-name &optional environment shell-launcher
 										 exec-find)
