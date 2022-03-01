@@ -6,18 +6,40 @@ Emacs extension to the project package for supporting CMake as build system.
 
 This package is an extension to Emacs' own `project` package [(see link)](https://www.gnu.org/software/emacs/manual/html_node/emacs/Projects.html) .  Emacs' `project` understands more or less the source coude structure of a repository, it can help you find files and open shells at the right locations. However, its `project-compile` minimalistic function does not really work and does not understand modern build systems.
 
-The package `project-cmake` incorporates the required logic to understand that a project is to be configured, built and tested using CMake and CTest.  It also is capable of recognizing different build kits, on platforms that support it.  For instance, on Windows it can scan for [MSYS2 / MINGW64](https://www.msys2.org/) environments and used the versions of CMake and the compiler supported by it. It can also detect and configure installations of Linux distributions via the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install), using the installed copy of CMake and Linux C/C++ compilers to build the software, and eventually it will also support Microsoft compilation environments.
+The package `project-cmake` incorporates the required logic to understand that a project is to be configured, built and tested using CMake and CTest.  It also is capable of recognizing different build kits, on platforms that support it (see below).
 
 `project-cmake` also adds new key bindings to the `project-prefix-map`, with the following default assignments
-
+````
    C-x p C   -  project-cmake-configure
    C-x p m   -  project-cmake-build
    C-x p t   -  project-cmake-test
-   C-x p s  -  project-cmake-shell
+   C-x p i   -  project-cmake-install
+   C-x p s   -  project-cmake-shell
+   C-x p S K -  project-cmake-select-kit
+````
+
+`project-cmake-configure`, `project-cmake-build`, `project-cmake-test` and `project-cmake-install` do the expected thing: configure, compile, test and install the software using CMake and CTest. When provided arguments (e.g. by pressing `C-u` before invoking the command) `project-cmake-configure`  and `project-cmake-build` with perform a clean phase. When configuring, the clean phase means that the build directory will be wiped out. When building, the clean phase simply deletes all compiled files and runs the build process from scratch.
+
+`project-cmake-shell` is a wrapper around `project-shell` that enables using shells and environments appropriate to the development kit. When working with MSYS2/MINGW64 or the Windows Subsystem for Linux, this shell is not the usual Emacs shell and requires some magic that `project-cmake` already takes care of.
+
+All these commands require that you have selected a build kit to build the software. This is a project-local value that you will be prompted for, and which will be saved in the `.project.el` file, together with other settings.
 
 `project-cmake` can also help LSP servers by providing them with the right configuration flags on how to locate a project's build structure and build flags.  At this moment, this integration is only provided for `eglot` (see [project webage](https://github.com/joaotavora/eglot)), via the function `project-cmake-eglot-integration` which hooks into `eglot-ensure` and updates `eglot-server-programs`.
 
-`project-cmake-shell` is a wrapper around `project-shell` that enables using shells and environments appropriate to the development kit. For instance, if building with MINGW64 under the UCRT64 ABI, it will invoke MSYS's copy of `bash` with appropriate arguments (namely login and interactive shell without the readline library).
+## Build kits
+
+A build kit is a set of configuration flags for CMake that determine the type of C/C++ compiler and various other flags to build the system. It can be a very trivial definition, or it can be very complex and involve certain wrappers, depending on the platform.
+
+### Linux
+
+On Unix-like systems, `project-cmake` has a very simple logic. It always create a default kit, called `unix` which uses whatever compiler CMake decides. Then, if there are multiple compilers, it creates one kit for each of them, with names `unix-gcc`, `unix-clang`, `unix-icc`. It uses the same name (`gcc`, `clang`, `icc`) for the C and C++ front-ends, defining the `CC` and `CXX` environment variables.
+
+### Windows
+
+On Windows the usual thing is that we do not have compilers immediately available. In this case `project-cmake` offers these possibilities:
+- Defining build kits for an existing [MSYS2 / MINGW64](https://www.msys2.org/) environment.
+- Defining Unix-like build kits for any Linux distribution available via the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install)
+- Eventually, `project-cmake` should also be able to detect Microsoft Visual Studio C/C++ compilers, or other compilers made availably by Anaconda or different package managers.
 
 ## Usage
 
@@ -25,9 +47,6 @@ Let me briefly describe how I use this project. I have checked out this reposito
 ````
 (use-package project-cmake
     :load-path "~/src/project-cmake/"
-    :custom
-    ;; I work on Windows and build using MSYS2
-    (project-cmake-default-kit 'msys2-ucrt64)
     :config
     (require 'eglot)
     (project-cmake-scan-kits)
