@@ -59,6 +59,7 @@
 ;;
 
 (require 'project)
+(require 'project-local)
 
 (defgroup project-cmake nil
   "Project-assisted management of CMake builds.")
