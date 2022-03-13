@@ -276,7 +276,8 @@ message about ioctl that can be ignored.")
 	(and shell-path
 		 (lambda (function-to-call)
 		   (let* ((explicit-shell-file-name shell-path)
-				  (process-environment (cons "PS1=$ " process-environment))
+				  (msystem (concat "MSYSTEM=" (upcase (symbol-name type))))
+				  (process-environment (cl-list* "PS1=$ " msystem process-environment))
 				  (explicit-bash.exe-args project-cmake-msys2-bash-args))
 			 (funcall function-to-call))))))
 
@@ -471,6 +472,7 @@ LSP server and LSP server directory."
 to find the C/C++ language servers, compile_commands.json and
 other environment flags."
   (interactive)
+  (require 'eglot)
   (add-to-list 'eglot-server-programs
 			   '((c++-mode c-mode) . project-cmake-eglot-clangd-command-line))
   (advice-add 'eglot-ensure :around 'project-cmake-eglot-ensure-wrapper))
