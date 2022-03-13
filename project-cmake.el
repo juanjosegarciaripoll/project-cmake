@@ -118,6 +118,10 @@ following fields:
       Location of Clangd in this kit.  Used for integration with
       `eglot` (see `project-cmake-eglot-integration`)
 
+  :GDB - STRING
+
+      Location of 'gdb' in this kit.  See `project-cmake-gdb`.
+
   :SHELL
 
       A single-argument function that defines the value of
@@ -353,6 +357,9 @@ message about ioctl that can be ignored.")
       ,@(let* ((clangd (kit-exec-find "clangd")))
           (and clangd
                `(:clangd ,clangd)))
+      ,@(let* ((gdb (kit-exec-find "gdb")))
+          (and gdb
+               `(:gdb ,gdb)))
 	  ,@(and shell-launcher
 			 `(:shell ,shell-launcher))
       ,@(if (kit-exec-find "ninja")
