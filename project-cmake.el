@@ -60,6 +60,7 @@
 
 (require 'project)
 (require 'project-local)
+(require 'project-cmake-api)
 
 (defgroup project-cmake nil
   "Project-assisted management of CMake builds.")
@@ -436,7 +437,7 @@ selected kit, or NIL if it does not exist."
              (project-cmake-kit-name)
 			 (project-cmake-kit)))))
 
-(defun project-cmake-kit-compile (command-list)
+(defun project-cmake-kit-compile (command-list &optional interactive-p)
   (let* ((command-wrapper (project-cmake-kit-value :command-prefix))
 		 (compile-command (combine-and-quote-strings
 						   (append command-wrapper command-list)))
@@ -446,7 +447,9 @@ selected kit, or NIL if it does not exist."
               compilation-buffer-name-function))
 		 (default-directory (project-root (project-current t))))
 	(message "compile-command: %S" compile-command)
-	(call-interactively #'compile)))
+	(if interactive-p
+		(call-interactively #'compile)
+	  (compile compile-command))))
 
 
 ;;;
@@ -547,11 +550,12 @@ the CMake generator."
 		  (project-cmake-configure)
 		  t))))
 
-(defun project-cmake-kit-build-command (&optional clean)
+(defun project-cmake-kit-build-command (&optional target clean)
   "Return the command line to build the project using CMake.  If
 CLEAN is not NIL, specify that the project is recompiled from
 scratch."
-  (let ((args (list "--build" (project-cmake-kit-build-directory))))
+  (let ((args (list "--build" (project-cmake-kit-build-directory)
+					"--target" target)))
     (when project-cmake-jobs
       (setq args (append (list "-j" (format "%s" project-cmake-jobs))
                          args)))
@@ -599,7 +603,12 @@ directory to start from scratch."
   (interactive "P")
   (when clean
 	(project-cmake-remove-build-directory))
-  (project-cmake-kit-compile (project-cmake-kit-configure-command)))
+  (let ((compilation-finish-functions
+		 (cons (lambda (buffer status)
+				 (project-cmake-api-query-complete))
+			   compilation-finish-functions)))
+	(project-cmake-api-query-prepare)
+	(project-cmake-kit-compile (project-cmake-kit-configure-command))))
 
 (defun project-cmake-build (&optional clean)
   "Build a project tree using CMake and the current kit.  If
@@ -608,7 +617,9 @@ scratch, preserving the existing configuration."
   (interactive "P")
   (unless (project-cmake-ensure-configured)
 	(error "Cannot build project that has not been configured first."))
-  (project-cmake-kit-compile (project-cmake-kit-build-command)))
+  (project-cmake-kit-compile (project-cmake-kit-build-command
+							  (project-cmake-api-choose-target)
+							  clean)))
 
 (defun project-cmake-install ()
   "Build a project tree using CMake and the current kit.  If
