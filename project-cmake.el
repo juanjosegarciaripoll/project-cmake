@@ -270,16 +270,26 @@ message about ioctl that can be ignored.")
 
 (defvar explicit-bash.exe-args nil)
 
+(defun project-cmake-msys2-change-directory (path)
+  (let ((buffer (current-buffer)))
+	(when (comint-check-proc buffer)
+	  (comint-send-string (get-buffer-process buffer)
+						  (format "cd \"%s\"\n" path)))))
+
 (defun project-cmake-msys2-shell-launcher (type)
   (let* ((msys2-path (project-cmake-msys2-path 'msys))
 		 (shell-path (expand-file-name "bash.exe" msys2-path)))
 	(and shell-path
 		 (lambda (function-to-call)
 		   (let* ((explicit-shell-file-name shell-path)
+				  (default-directory (expand-file-name (project-cmake-kit-source-directory)))
 				  (msystem (concat "MSYSTEM=" (upcase (symbol-name type))))
 				  (process-environment (cl-list* "PS1=$ " msystem process-environment))
 				  (explicit-bash.exe-args project-cmake-msys2-bash-args))
-			 (funcall function-to-call))))))
+			 (funcall function-to-call)
+			 ;; The login option makes bash change to the home directory
+			 ;; We must use 'cd' to move to the project's directory
+			 (project-cmake-msys2-change-directory default-directory))))))
 
 (defun project-cmake-msys2-bash ()
   (let ((msys-path (project-cmake-msys2-path 'msys)))
@@ -605,10 +615,24 @@ scratch, preserving the existing configuration."
 (defun project-cmake-shell ()
   "Run a shell which is appropriate for the given compilation kit."
   (interactive)
-  (let ((shell-launcher (project-cmake-kit-value :shell)))
+  (require 'comint)
+  (let ((default-directory (project-root (project-current t)))
+		(shell-launcher (project-cmake-kit-value :shell)))
 	(if shell-launcher
-		(funcall shell-launcher 'project-shell)
-	  (project-shell))))
+		(funcall shell-launcher 'project-shell-fix)
+	  (project-shell-fix))))
+
+(defun project-shell-fix ()
+  "Fixed version for project-shell"
+  (interactive)
+  (require 'comint)
+  (let* ((default-directory (expand-file-name (project-root (project-current t))))
+         (default-project-shell-name (project-prefixed-buffer-name "shell"))
+         (shell-buffer (get-buffer default-project-shell-name)))
+	(message default-directory)
+	(if (comint-check-proc shell-buffer)
+        (pop-to-buffer shell-buffer (bound-and-true-p display-comint-buffer-action))
+      (shell shell-buffer))))
 
 (defun project-cmake-test ()
   "Run the tests in a using CTest and the current kit."
