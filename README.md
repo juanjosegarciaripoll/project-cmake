@@ -16,9 +16,10 @@ The package `project-cmake` incorporates the required logic to understand that a
    C-x p i   -  project-cmake-install
    C-x p s   -  project-cmake-shell
    C-x p S K -  project-cmake-select-kit
+   C-x p U   -  project-cmake-debug
 ````
 
-`project-cmake-configure`, `project-cmake-build`, `project-cmake-test` and `project-cmake-install` do the expected thing: configure, compile, test and install the software using CMake and CTest. When provided arguments (e.g. by pressing `C-u` before invoking the command) `project-cmake-configure`  and `project-cmake-build` with perform a clean phase. When configuring, the clean phase means that the build directory will be wiped out. When building, the clean phase simply deletes all compiled files and runs the build process from scratch.
+`project-cmake-configure`, `project-cmake-build`, `project-cmake-test`, `project-cmake-install` and `project-cmake-debug` do the expected thing: configure, compile, test and install the software using CMake and CTest. When provided arguments (e.g. by pressing `C-u` before invoking the command) `project-cmake-configure`  and `project-cmake-build` with perform a clean phase. When configuring, the clean phase means that the build directory will be wiped out. When building, the clean phase simply deletes all compiled files and runs the build process from scratch. When building or debugging, `project-cmake` will query the user for the desired target out of those that are know to CMake.
 
 `project-cmake-shell` is a wrapper around `project-shell` that enables using shells and environments appropriate to the development kit. When working with MSYS2/MINGW64 or the Windows Subsystem for Linux, this shell is not the usual Emacs shell and requires some magic that `project-cmake` already takes care of.
 
