@@ -179,7 +179,6 @@
 
 (defun project-cmake-api-query-complete ()
   (let ((reply-files (project-cmake-api-list-reply-files)))
-	(message "Reply files: %s" reply-files)
 	(if reply-files
 		(project-cmake-api-read-targets reply-files)
 	  (warn "CMake project contains no targets or does not support file API."))))
