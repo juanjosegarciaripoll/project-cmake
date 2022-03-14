@@ -66,9 +66,16 @@
   "Project-assisted management of CMake builds.")
 
 (defcustom project-cmake-variables
-  '(project-cmake-configuration-arguments
+  '(project-cmake-build-type
+	project-cmake-configuration-arguments
 	project-cmake-generator)
   "List of project-local variables that can be edited by the user")
+
+(defcustom project-cmake-build-type "Debug"
+  "Build type. Usually one of \"Debug\", \"Release\",
+\"RelWithDebInfo\" or \"MinSizeRel\"."
+  :type 'string
+  :safe 'stringp)
 
 (defcustom project-cmake-kit nil
   "C++ kit for building this project. It is recommended to leave
@@ -539,6 +546,9 @@ other environment flags."
 	  (error (format t "Project at %s does not have a CMakeLists.txt"
 					 root)))))
 
+(defun project-cmake-build-type ()
+  (project-local-value (project-current t) 'project-cmake-build-type))
+
 (defun project-cmake-parse-configuration-arguments ()
   (let ((arguments (project-local-value (project-current t) 'project-cmake-configuration-arguments)))
 	(cond ((listp arguments)
@@ -553,6 +563,7 @@ build directory (see `project-cmake-build-directory-name`) and
 the CMake generator."
   (apply #'project-cmake-kit-cmake-command
          "-G" (project-cmake-guess-generator)
+		 (concat "-DCMAKE_BUILD_TYPE:STRING=" (project-cmake-build-type))
 		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
          (concat "-H" (project-cmake-kit-source-directory))
          (concat "-B" (project-cmake-kit-build-directory))
@@ -620,11 +631,14 @@ directory to start from scratch."
   (interactive "P")
   (when clean
 	(project-cmake-remove-build-directory))
-  (let ((compilation-finish-functions
-		 (cons (lambda (buffer status)
-				 (project-cmake-api-query-complete))
-			   compilation-finish-functions)))
+  (let ((compilation-mode-hook compilation-mode-hook))
 	(project-cmake-api-query-prepare)
+	(add-to-list 'compilation-mode-hook
+				 (lambda ()
+				   (setq-local compilation-finish-functions
+							   (cons (lambda (buffer status)
+									   (project-cmake-api-query-complete))
+									 compilation-finish-functions))))
 	(project-cmake-kit-compile (project-cmake-kit-configure-command))))
 
 (defun project-cmake-build (&optional clean)
