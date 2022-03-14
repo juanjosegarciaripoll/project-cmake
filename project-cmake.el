@@ -289,7 +289,7 @@ message about ioctl that can be ignored.")
 		   (let* ((explicit-shell-file-name shell-path)
 				  (default-directory (expand-file-name (project-cmake-kit-source-directory)))
 				  (msystem (concat "MSYSTEM=" (upcase (symbol-name type))))
-				  (process-environment (cl-list* "PS1=$ " msystem process-environment))
+				  (process-environment (cl-list* "PS1=$ " "TERM=dumb" msystem process-environment))
 				  (explicit-bash.exe-args project-cmake-msys2-bash-args))
 			 (funcall function-to-call)
 			 ;; The login option makes bash change to the home directory
@@ -426,6 +426,10 @@ selected kit, or NIL if it does not exist."
 (defun project-cmake-kit-compilation-environment ()
   (append compilation-environment
           (project-cmake-kit-value :environment)))
+
+(defun project-cmake-kit-debug-environment ()
+  (append (project-cmake-kit-value :environment)
+		  process-environment))
 
 (defun project-cmake-kit-cmake-command (&rest arguments)
   (let ((cmake (project-cmake-kit-value :cmake)))
@@ -695,10 +699,10 @@ scratch, preserving the existing configuration."
   (let ((default-directory (project-root (project-current t)))
 		(gud-gdb-command-name gud-gdb-command-name)
 		(target (project-cmake-api-choose-executable-file))
-        (process-environment (project-cmake-kit-compilation-environment))
+        (process-environment (project-cmake-kit-debug-environment))
 		(gdb-executable (project-cmake-kit-value :gdb)))
 	(cond (gdb-executable
-		   (gdb (setq gud-gdb-command-name (concat gdb-executable " -i=mi " target))))
+		   (gdb (setq gud-gdb-command-name (concat gdb-executable " -q -i=mi " target))))
 		  ((y-or-n-p (format t "No GDB installed in kit %s. Use default value \"%s\"?"
 							 (project-cmake-kit-name)
 							 old-gdb-command-name))
