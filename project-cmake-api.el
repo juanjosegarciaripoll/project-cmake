@@ -45,15 +45,17 @@
 
 (defun project-cmake-api-query-filename ()
   (expand-file-name ".cmake/api/v1/query/codemodel-v2"
-					(project-cmake-kit-build-directory)))
+					(project-cmake-build-directory)))
 
 (defun project-cmake-api-reply-directory ()
   (expand-file-name ".cmake/api/v1/reply"
-					(project-cmake-kit-build-directory)))
+					(project-cmake-build-directory)))
 
 (defun project-cmake-api-prepare-query-file ()
   (let* ((query-filename (project-cmake-api-query-filename))
 		 (directory (file-name-directory query-filename)))
+	(message "Directory: %s" directory)
+	(message "File: %s -> %s" query-filename (file-exists-p query-filename))
 	(unless (file-exists-p query-filename)
 	  (unless (file-exists-p directory)
 		(mkdir directory 'parents))
@@ -93,7 +95,7 @@
   (plist-get target :nameOnDisk))
 
 (defun project-cmake-api-target-artifacts (target)
-  (let ((root (project-cmake-kit-build-directory)))
+  (let ((root (project-cmake-build-directory)))
 	(mapcar #'(lambda (item)
 				(expand-file-name (plist-get item :path)
 								  root))
@@ -141,7 +143,7 @@
    (project-cmake-api-choose-executable-target)))
 
 (defun project-cmake-api-read-targets (reply-files)
-  (let ((source-directory (project-cmake-kit-source-directory))
+  (let ((source-directory (project-cmake-source-directory))
 		(sources (make-hash-table :test 'equal))
 		(all-target-names '("all" "clean"))
 		executables

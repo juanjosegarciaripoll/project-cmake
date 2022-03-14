@@ -167,6 +167,17 @@ at the root of the project's directory."
         (push (match-string-no-properties 0) output)))
     output))
 
+
+(defun project-cmake-build-directory ()
+  "Return the full path to the build directory"
+  (expand-file-name (or project-cmake-build-directory-name
+                        (concat "build-" (symbol-name (project-cmake-kit-name))))
+                    (project-root (project-current t))))
+
+(defun project-cmake-source-directory ()
+  "Return the full path to the project's source (or root) directory"
+  (expand-file-name (project-root (project-current t))))
+
 
 ;;;
 ;;; INTEGRATION WITH WSL
@@ -408,14 +419,14 @@ message about ioctl that can be ignored.")
 		   path))
 
 (defun project-cmake-kit-build-directory ()
+  "Return the path for the project's build directory as understood by the build kit."
   (project-cmake-kit-convert-path
-   (expand-file-name (or project-cmake-build-directory-name
-                         (concat "build-" (symbol-name (project-cmake-kit-name))))
-                     (project-root (project-current t)))))
+   (project-cmake-build-directory)))
 
 (defun project-cmake-kit-source-directory ()
+  "Return the path for the project's source directory as understood by the build kit."
   (project-cmake-kit-convert-path
-   (expand-file-name (project-root (project-current t)))))
+   (project-cmake-source-directory)))
 
 (defun project-cmake-kit-name ()
   "Return the symbol for the selected kit."
@@ -479,7 +490,7 @@ selected kit, or NIL if it does not exist."
 ;;; any other sources.
 
 (defun project-cmake-eglot-clangd-command-line (interactive-p)
-  (let* ((build-directory (project-cmake-kit-build-directory))
+  (let* ((build-directory (project-cmake-build-directory))
          (database (expand-file-name "compile_commands.json"
                                      build-directory)))
     (when (and interactive-p
@@ -490,7 +501,7 @@ selected kit, or NIL if it does not exist."
 	  (if clangd
 		  (list clangd
 			"--clang-tidy" ;; Enable clang tidy checks
-			(format "--compile-commands-dir=%s" build-directory))
+			(format "--compile-commands-dir=%s" (project-cmake-kit-build-directory)))
 		(error "Cannot find clangd in current kit %s\nKit configuration:\n%S"
                (project-cmake-kit-name)
 			   (project-cmake-kit)
@@ -541,9 +552,9 @@ other environment flags."
 
 (defun project-cmake-ensure-cmakelist ()
   "Ensure that the current project has a valid CMakeLists.txt file."
-  (let ((root (project-cmake-kit-source-directory)))
+  (let ((root (project-cmake-source-directory)))
 	(unless (file-exists-p (expand-file-name "CMakeLists.txt" root))
-	  (error (format t "Project at %s does not have a CMakeLists.txt"
+	  (error (format "Project at %s does not have a CMakeLists.txt"
 					 root)))))
 
 (defun project-cmake-build-type ()
@@ -565,16 +576,16 @@ the CMake generator."
          "-G" (project-cmake-guess-generator)
 		 (concat "-DCMAKE_BUILD_TYPE:STRING=" (project-cmake-build-type))
 		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
-         (concat "-H" (project-cmake-kit-source-directory))
+         (concat "-S" (project-cmake-kit-source-directory))
          (concat "-B" (project-cmake-kit-build-directory))
 		 (project-cmake-parse-configuration-arguments)
          ))
 
 (defun project-cmake-ensure-configured ()
   "Ensure that the project has been configured before building it."
-  (let ((build (project-cmake-kit-build-directory)))
+  (let ((build (project-cmake-build-directory)))
 	(or (file-exists-p build)
-		(when (y-or-n-p (format t "Project has not been configured.  Do you want to configure it first?"))
+		(when (y-or-n-p (format "Project has not been configured.  Do you want to configure it first?"))
 		  (project-cmake-configure)
 		  t))))
 
@@ -604,17 +615,26 @@ scratch."
 (defun project-cmake-kit-cmake-find-test-directory ()
   "Find the first directory with a CTest*.cmake file understanding that
 it will contain all files for CTest."
-  (let* ((root (project-cmake-kit-build-directory))
+  (let* ((root (project-cmake-build-directory))
          (candidates (directory-files-recursively root "CTest.*.cmake"))
          output)
     (dolist (path candidates)
       (let ((dir (file-name-directory path)))
         (unless (string-match "[/\\]_deps[/\\]" dir)
           (setq output dir))))
-    output))
+    (project-cmake-kit-convert-path output)))
+
+(defun project-cmake-kit-ctest-command ()
+  "Return the command line to run CTest in the right directory."
+  (let* ((ctest-directory (project-cmake-kit-cmake-find-test-directory))
+		 (ctest-args (list "--test-dir" ctest-directory))
+		 (ctest (or (project-cmake-kit-value :ctest)
+					(error "Cannot find CTest in current kit %s"
+						   (project-cmake-kit-name)))))
+	(cl-list* ctest ctest-args)))
 
 (defun project-cmake-remove-build-directory ()
-  (let ((build-directory (project-cmake-kit-build-directory)))
+  (let ((build-directory (project-cmake-build-directory)))
     (when (and (file-exists-p build-directory)
                (y-or-n-p (format "Delete directory %s" build-directory)))
       (delete-directory build-directory t))))
@@ -661,6 +681,17 @@ scratch, preserving the existing configuration."
 	(error "Cannot build project that has not been configured first."))
   (project-cmake-kit-compile (project-cmake-kit-install-command)))
 
+(defun project-cmake-test ()
+  "Run the tests in a using CTest and the current kit."
+  (interactive)
+  (unless (project-cmake-ensure-configured)
+	(error "Cannot build project that has not been configured first."))
+  (let* ((default-directory (project-cmake-build-directory))
+		 (buffer-name (format "*CTest %s*" default-directory))
+		 (compilation-buffer-name-function (lambda (mode) buffer-name)))
+	(project-cmake-kit-compile (project-cmake-kit-ctest-command))
+    (switch-to-buffer-other-window (get-buffer buffer-name))))
+
 (defun project-cmake-shell ()
   "Run a shell which is appropriate for the given compilation kit."
   (interactive)
@@ -682,26 +713,6 @@ scratch, preserving the existing configuration."
 	(if (comint-check-proc shell-buffer)
         (pop-to-buffer shell-buffer (bound-and-true-p display-comint-buffer-action))
       (shell shell-buffer))))
-
-(defun project-cmake-test ()
-  "Run the tests in a using CTest and the current kit."
-  (interactive)
-  (let* ((ctest-directory (project-cmake-kit-cmake-find-test-directory))
-         (ctest-args (list "--test-dir" ctest-directory))
-         (default-directory (project-cmake-kit-build-directory))
-         (process-environment (project-cmake-kit-compilation-environment))
-         (outbuf (get-buffer-create project-cmake-ctest-buffer)))
-    (with-current-buffer outbuf
-      (delete-region (point-min) (point-max))
-      (display-buffer outbuf '(nil (allow-no-window . t)))
-      (insert ";;; Running CTest\n")
-      (switch-to-buffer-other-window outbuf)
-      (end-of-buffer)
-      (apply #'start-process
-             "CTest"
-             (current-buffer)
-             (or (project-cmake-kit-value :ctest) "ctest")
-             ctest-args))))
 
 (defun project-cmake-select-kit (kit-name)
   "Select a kit for this project."
@@ -730,7 +741,7 @@ scratch, preserving the existing configuration."
 		(gdb-executable (project-cmake-kit-value :gdb)))
 	(cond (gdb-executable
 		   (gdb (setq gud-gdb-command-name (concat gdb-executable " -q -i=mi " target))))
-		  ((y-or-n-p (format t "No GDB installed in kit %s. Use default value \"%s\"?"
+		  ((y-or-n-p (format "No GDB installed in kit %s. Use default value \"%s\"?"
 							 (project-cmake-kit-name)
 							 old-gdb-command-name))
 		   (gdb gud-gdb-command-name)))))
