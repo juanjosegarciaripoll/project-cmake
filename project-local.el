@@ -121,7 +121,7 @@ not exist."
 			  (while (setq sexp (read buf))
 				(cl-destructuring-bind (statement variable &optional value)
 					(when (eq statement 'defvar)
-					  (project-local-record-set record variable value))))
+					  (project-local-record-set record variable (eval value)))))
 			  output))
 		(error (message "Ill-formed project-local file %s" file-name))))
 	record))
