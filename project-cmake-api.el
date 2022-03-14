@@ -82,14 +82,37 @@
 (defun project-cmake-api-target-name (target)
   (plist-get target :name))
 
+(defun project-cmake-api-target-name (target)
+  (plist-get target :name))
+
 (defun project-cmake-api-target-sources (target)
   (plist-get target :sources))
 
 (defun project-cmake-api-source-path (target)
   (plist-get target :path))
 
+(defun project-cmake-api-target-nameOnDisk (target)
+  (plist-get target :nameOnDisk))
+
+(defun project-cmake-api-target-artifacts (target)
+  (let ((root (project-cmake-kit-build-directory)))
+	(mapcar #'(lambda (item)
+				(expand-file-name (plist-get item :path)
+								  root))
+			(plist-get target :artifacts))))
+
 (defun project-cmake-api-project-database ()
   (gethash (project-current t) project-cmake-api-database nil))
+
+(defun project-cmake-api-target-executable-file (target)
+  (let* ((nameOnDisk (project-cmake-api-target-nameOnDisk target))
+		 (artifact (cl-find-if (lambda (artifact)
+								 (string-match nameOnDisk artifact))
+							   (project-cmake-api-target-artifacts target))))
+	(unless artifact
+	  (error "Cannot find executable for target %s"
+			 (project-cmake-api-target-name target)))
+	artifact))
 
 (defun project-cmake-api-current-buffer-targets ()
   (let* ((file-name (expand-file-name (buffer-file-name (current-buffer))))
@@ -98,10 +121,26 @@
 		 (gethash file-name (project-cmake-targets-sources database) nil))))
 
 (defun project-cmake-api-choose-target ()
+  "Select by name one of CMake's build targets. Returns target's name."
   (let ((database (project-cmake-api-project-database)))
 	(completing-read "CMake target: "
 					 (project-cmake-targets-all-target-names database))))
 
+(defun project-cmake-api-choose-executable-target ()
+  "Select by name one of CMake's executable targets. Returns target object."
+  (let* ((database (project-cmake-api-project-database))
+		 (executables (mapcar #'(lambda (target)
+								  (cons (project-cmake-api-target-name target)
+										target))
+							  (project-cmake-targets-executable-targets database)))
+		 (name (completing-read "Choose executable target: "
+								executables)))
+	(cdr (assoc name executables))))
+
+(defun project-cmake-api-choose-executable-file ()
+  "Select by name one of CMake's executable targets. Returns target object."
+  (project-cmake-api-target-executable-file
+   (project-cmake-api-choose-executable-target)))
 
 (defun project-cmake-api-read-targets (reply-files)
   (let ((source-directory (project-cmake-kit-source-directory))
