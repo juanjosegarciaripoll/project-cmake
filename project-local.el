@@ -55,7 +55,7 @@ used during the manipulation of a project.")
   (dolist (pair project-local-cache)
 	(let ((project (car pair))
 		  (record (cdr pair)))
-	  (funcall project record))))
+	  (funcall fn project record))))
 
 (defun project-local-file-name (project)
   "Return the canonical name for a project's local variable file."
