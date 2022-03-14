@@ -162,6 +162,15 @@ project-local cache, that will have to be saved later on."
 	(project-local-set (project-current t) variable
 					   (read-from-minibuffer prompt value))))
 
+(defun project-local-edit (project variable)
+  (let* ((prompt (format "Value of %s: " variable))
+		 (type (custom-variable-type variable))
+		 (value (project-local-value project variable))
+		 (new-value (if type
+						(widget-prompt-value type prompt value)
+					  (read-from-minibuffer prompt value))))
+	(project-local-set (project-current t) variable new-value)))
+
 (defun project-local-save-project (project record)
   (when (and (project-local-record-value record :changed)
 			 (or (null project-local-confirm-save)
