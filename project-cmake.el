@@ -687,6 +687,23 @@ scratch, preserving the existing configuration."
   (when kit-name
 	(project-local-set (project-current t) 'project-cmake-kit (intern kit-name))))
 
+
+(defun project-cmake-debug ()
+  "Run a debugger on a selected target."
+  (interactive)
+  (require 'comint)
+  (let ((default-directory (project-root (project-current t)))
+		(gud-gdb-command-name gud-gdb-command-name)
+		(target (project-cmake-api-choose-executable-file))
+        (process-environment (project-cmake-kit-compilation-environment))
+		(gdb-executable (project-cmake-kit-value :gdb)))
+	(cond (gdb-executable
+		   (gdb (setq gud-gdb-command-name (concat gdb-executable " -i=mi " target))))
+		  ((y-or-n-p (format t "No GDB installed in kit %s. Use default value \"%s\"?"
+							 (project-cmake-kit-name)
+							 old-gdb-command-name))
+		   (gdb gud-gdb-command-name)))))
+
 
 ;;
 ;; Default key bindings into the `project` map
@@ -696,5 +713,6 @@ scratch, preserving the existing configuration."
 (define-key project-prefix-map "C" 'project-cmake-configure)
 (define-key project-prefix-map "s" 'project-cmake-shell)
 (define-key project-prefix-map "SK" 'project-cmake-select-kit)
+(define-key project-prefix-map "U" 'project-cmake-debug)
 
 (provide 'project-cmake)
