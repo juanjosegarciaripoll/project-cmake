@@ -64,10 +64,7 @@
 	query-filename))
 
 (defun project-cmake-api-list-reply-files ()
-  (let ((reply-directory (project-cmake-api-reply-directory)))
-	(message "Reply directory: %s" reply-directory)
-	(message "Exists: %s" (file-exists-p reply-directory))
-	(message "List: %s" (directory-files reply-directory 'full-name ".*\\.json"))
+  (let* ((reply-directory (project-cmake-api-reply-directory)))
 	(and (file-exists-p reply-directory)
 		 (directory-files reply-directory 'full-name ".*\\.json"))))
 
