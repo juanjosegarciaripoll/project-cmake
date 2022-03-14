@@ -36,8 +36,6 @@
 ;; a list of all targets, separated by executable, library and custom target
 ;; types.
 
-(defvar project-cmake-api-database (make-hash-table :test 'equal))
-
 (cl-defstruct project-cmake-targets
   executable-targets
   library-targets
@@ -102,7 +100,7 @@
 			(plist-get target :artifacts))))
 
 (defun project-cmake-api-project-database ()
-  (gethash (project-current t) project-cmake-api-database nil))
+  (project-local-value (project-current t) :cmake-targets))
 
 (defun project-cmake-api-target-executable-file (target)
   (let* ((nameOnDisk (project-cmake-api-target-nameOnDisk target))
@@ -166,14 +164,14 @@
 										  source-directory)))
 			  (puthash path json sources))))))
 	(when all-targets
-	  (puthash (project-current t)
-			   (make-project-cmake-targets
-				:executable-targets executables
-				:library-targets libraries
-				:all-targets all-targets
-				:all-target-names (sort all-target-names #'string<)
-				:sources sources)
-			   project-cmake-api-database))))
+	  (project-local-set (project-current t)
+						 :cmake-targets
+						 (make-project-cmake-targets
+						  :executable-targets executables
+						  :library-targets libraries
+						  :all-targets all-targets
+						  :all-target-names (sort all-target-names #'string<)
+						  :sources sources)))))
 
 (defun project-cmake-api-query-prepare ()
   (project-cmake-api-prepare-query-file)
