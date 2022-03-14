@@ -539,6 +539,13 @@ other environment flags."
 	  (error (format t "Project at %s does not have a CMakeLists.txt"
 					 root)))))
 
+(defun project-cmake-parse-configuration-arguments ()
+  (let ((arguments (project-local-value (project-current t) 'project-cmake-configuration-arguments)))
+	(cond ((listp arguments)
+		   arguments)
+		  ((stringp arguments)
+		   (list arguments)))))
+
 (defun project-cmake-kit-configure-command ()
   "Return the command line to configure the project using
 CMake.  The function guesses the project source directory, project
@@ -549,7 +556,8 @@ the CMake generator."
 		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
          (concat "-H" (project-cmake-kit-source-directory))
          (concat "-B" (project-cmake-kit-build-directory))
-         (project-local-value (project-current t) 'project-cmake-configuration-arguments)))
+		 (project-cmake-parse-configuration-arguments)
+         ))
 
 (defun project-cmake-ensure-configured ()
   "Ensure that the project has been configured before building it."
