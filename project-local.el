@@ -158,18 +158,24 @@ project-local cache, that will have to be saved later on."
 
 (defun project-local-edit (project variable)
   (let* ((prompt (format "Value of %s: " variable))
-		 (value (project-local-value project variable)))
-	(project-local-set (project-current t) variable
-					   (read-from-minibuffer prompt value))))
+		 (type (custom-variable-type variable))
+		 (value (project-local-value project variable))
+		 (foo (message "Value is %s, type is %s" value type))
+		 (new-value (if type
+						(widget-prompt-value type prompt value)
+					  (read-from-minibuffer prompt value))))
+	(project-local-set (project-current t) variable new-value)))
 
 (defun project-local-edit (project variable)
   (let* ((prompt (format "Value of %s: " variable))
 		 (type (custom-variable-type variable))
 		 (value (project-local-value project variable))
-		 (new-value (if type
-						(widget-prompt-value type prompt value)
-					  (read-from-minibuffer prompt value))))
-	(project-local-set (project-current t) variable new-value)))
+		 (new-value-string (read-from-minibuffer prompt (format "%S" value)))
+		 (new-value (car (read-from-string new-value-string))))
+	(if (widget-apply type :match new-value)
+		(project-local-set (project-current t) variable new-value)
+	  (error "The value does not match the expected type for %S"
+			 variable))))
 
 (defun project-local-save-project (project record)
   (when (and (project-local-record-value record :changed)
