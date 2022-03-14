@@ -51,6 +51,12 @@ take local values. A project's record may also contain values indexed
 by keywords (e.g. :filename, :date, etc) which are not saved but are
 used during the manipulation of a project.")
 
+(defun project-local-map-records (fn)
+  (dolist (pair project-local-cache)
+	(let ((project (car pair))
+		  (record (cdr pair)))
+	  (funcall project record))))
+
 (defun project-local-file-name (project)
   "Return the canonical name for a project's local variable file."
   (let ((root (project-root project)))
@@ -129,7 +135,8 @@ not exist."
 	 record
 	 (lambda (variable value)
 	   (unless (keywordp variable)
-		 (prin1 `(defvar ,variable ',value) (current-buffer)))))
+		 (prin1 `(defvar ,variable ',value) (current-buffer))
+		 (insert "\n"))))
 	(write-region (point-min) (point-max)
 				  (project-local-file-name project))))
 
@@ -149,21 +156,33 @@ project-local cache, that will have to be saved later on."
 	(project-local-record-mark-as-changed record)
 	value))
 
-(defun project-local-save-records ()
-  "Save all records that have been modified"
-  (dolist (pairs project-local-cache)
-	(let ((project (car pairs))
-		  (record (cdr pairs)))
-	  (when (and (project-local-record-value record :changed)
-				 (or (null project-local-confirm-save)
-					 (y-or-n-p (format "Save project local file %s?"
-									   (project-local-file-name project)))))
-		(project-local-write-definitions project record)))))
+(defun project-local-edit (project variable)
+  (let* ((prompt (format "Value of %s: " variable))
+		 (value (project-local-value project variable)))
+	(project-local-set (project-current t) variable
+					   (read-from-minibuffer prompt value))))
+
+(defun project-local-save-project (project record)
+  (when (and (project-local-record-value record :changed)
+			 (or (null project-local-confirm-save)
+				 (y-or-n-p (format "Save project local file %s?"
+								   (project-local-file-name project)))))
+	(project-local-write-definitions project record)))
+
+(defun project-local-save-records (&optional all)
+  "Save all records that have been modified. If no argument is
+provided, it only saves the variables from the current project.
+Otherwise it saves variables from all projects."
+  (if all
+	  (project-local-map-records 'project-local-save-project)
+	(let* ((project (project-current t))
+		   (record (project-local-record project)))
+	  (project-local-save-project project record))))
 
 (defun project-local-clear (&optional project)
   (interactive)
   (project-local-remove-record (or project (project-current t))))
 
-(add-to-list 'kill-emacs-hook 'project-local-save-records)
+(add-to-list 'kill-emacs-hook '(lambda () (project-local-save-records 'all)))
 
 (provide 'project-local)
