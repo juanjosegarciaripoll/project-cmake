@@ -65,6 +65,11 @@
 (defgroup project-cmake nil
   "Project-assisted management of CMake builds.")
 
+(defcustom project-cmake-variables
+  '(project-cmake-configuration-arguments
+	project-cmake-generator)
+  "List of project-local variables that can be edited by the user")
+
 (defcustom project-cmake-kit nil
   "C++ kit for building this project. It is recommended to leave
 unset and use `project-cmake-select-kit` to select a kit for each
@@ -72,7 +77,7 @@ project."
   :type '(or null symbol)
   :safe (lambda (x) (or (null x) (symbolp x))))
 
-(defcustom project-cmake-config-args nil
+(defcustom project-cmake-configuration-arguments nil
   "Arguments when invoking CMake for configuration."
   :type '(repeat string)
   :safe #'listp)
@@ -544,7 +549,7 @@ the CMake generator."
 		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
          (concat "-H" (project-cmake-kit-source-directory))
          (concat "-B" (project-cmake-kit-build-directory))
-         project-cmake-config-args))
+         (project-local-value (project-current t) 'project-cmake-configuration-arguments)))
 
 (defun project-cmake-ensure-configured ()
   "Ensure that the project has been configured before building it."
@@ -708,6 +713,16 @@ scratch, preserving the existing configuration."
 							 old-gdb-command-name))
 		   (gdb gud-gdb-command-name)))))
 
+(defun project-cmake-edit-settings (variable)
+  (interactive (list (completing-read "Project variable: "
+									  project-cmake-variables
+									  nil t)))
+  (project-local-edit (project-current t) (intern variable)))
+
+(defun project-cmake-save-settings (&optional all-projects)
+  (interactive)
+  (project-local-save-records all-projects))
+
 
 ;;
 ;; Default key bindings into the `project` map
@@ -717,6 +732,8 @@ scratch, preserving the existing configuration."
 (define-key project-prefix-map "C" 'project-cmake-configure)
 (define-key project-prefix-map "s" 'project-cmake-shell)
 (define-key project-prefix-map "SK" 'project-cmake-select-kit)
+(define-key project-prefix-map "SE" 'project-cmake-edit-settings)
+(define-key project-prefix-map "SS" 'project-cmake-save-settings)
 (define-key project-prefix-map "U" 'project-cmake-debug)
 
 (provide 'project-cmake)
