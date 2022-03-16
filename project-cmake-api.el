@@ -114,7 +114,7 @@
 			 (project-cmake-api-target-name target)))
 	artifact))
 
-(defun project-cmake-api-current-buffer-targets ()
+(defun project-cmake-api-current-buffer-target ()
   (let* ((file-name (expand-file-name (buffer-file-name (current-buffer))))
 		 (database (project-cmake-api-project-database)))
 	(and database
@@ -129,12 +129,14 @@
 (defun project-cmake-api-choose-executable-target ()
   "Select by name one of CMake's executable targets. Returns target object."
   (let* ((database (project-cmake-api-project-database))
+		 (executable-targets (project-cmake-targets-executable-targets database))
 		 (executables (mapcar #'(lambda (target)
 								  (cons (project-cmake-api-target-name target)
 										target))
-							  (project-cmake-targets-executable-targets database)))
+							  executable-targets))
+		 (default-target (project-cmake-api-current-buffer-target))
 		 (name (completing-read "Choose executable target: "
-								executables)))
+								executables nil t (and default-target (project-cmake-api-target-name default-target)))))
 	(cdr (assoc name executables))))
 
 (defun project-cmake-api-choose-executable-file ()
