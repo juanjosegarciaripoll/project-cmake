@@ -731,7 +731,14 @@ scratch, preserving the existing configuration."
 
 
 (defun project-cmake-debug ()
-  "Run a debugger on a selected target."
+  "Run a debugger on a selected target. Run the toolkit's
+debugger passing a compiled executable target as argument. The
+target is selected from the list of CMake executable targets. If
+the current buffer belongs to one such executable target, it is
+passed as initial value in the selection list.
+
+Note: This function defaults to calling the old interface GUD-GDB
+on the Windows platform."
   (interactive)
   (require 'comint)
   (let ((default-directory (project-root (project-current t)))
@@ -741,7 +748,7 @@ scratch, preserving the existing configuration."
 	(if gdb-executable
 		(if (eq system-type 'windows-nt)
 			(gud-gdb (concat gdb-executable " --fullname " target))
-		  (gud-gdb (concat gdb-executable " -i=mi " target)))
+		  (gdb (concat gdb-executable " -i=mi " target)))
 	  (error "No GDB installed in kit %s."))))
 
 (defun project-cmake-edit-settings (variable)
