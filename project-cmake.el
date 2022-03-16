@@ -464,10 +464,12 @@ selected kit, or NIL if it does not exist."
              (project-cmake-kit-name)
 			 (project-cmake-kit)))))
 
+(defun project-cmake-kit-wrap (command-list)
+  (combine-and-quote-strings (append (project-cmake-kit-value :command-prefix)
+									 command-list)))
+
 (defun project-cmake-kit-compile (command-list &optional interactive-p)
-  (let* ((command-wrapper (project-cmake-kit-value :command-prefix))
-		 (compile-command (combine-and-quote-strings
-						   (append command-wrapper command-list)))
+  (let* ((compile-command (project-cmake-kit-wrap command-list))
 		 (compilation-environment (project-cmake-kit-compilation-environment))
 		 (compilation-buffer-name-function
           (or project-compilation-buffer-name-function
@@ -709,10 +711,9 @@ scratch, preserving the existing configuration."
   (let* ((default-directory (expand-file-name (project-root (project-current t))))
          (default-project-shell-name (project-prefixed-buffer-name "shell"))
          (shell-buffer (get-buffer default-project-shell-name)))
-	(message default-directory)
 	(if (comint-check-proc shell-buffer)
         (pop-to-buffer shell-buffer (bound-and-true-p display-comint-buffer-action))
-      (shell shell-buffer))))
+      (shell (or shell-buffer default-project-shell-name)))))
 
 (defun project-cmake-select-kit (kit-name)
   "Select a kit for this project."
@@ -742,13 +743,14 @@ on the Windows platform."
   (interactive)
   (require 'comint)
   (let ((default-directory (project-root (project-current t)))
-		(target (project-cmake-api-choose-executable-file))
+		(target (project-cmake-kit-convert-path
+				 (project-cmake-api-choose-executable-file)))
         (process-environment (project-cmake-kit-debug-environment))
 		(gdb-executable (project-cmake-kit-value :gdb)))
 	(if gdb-executable
 		(if (eq system-type 'windows-nt)
-			(gud-gdb (concat gdb-executable " --fullname " target))
-		  (gdb (concat gdb-executable " -i=mi " target)))
+			(gud-gdb (project-cmake-kit-wrap (list gdb-executable "--fullname" target)))
+		  (gdb (project-cmake-kit-wrap (list gdb-executable "-i=mi" target))))
 	  (error "No GDB installed in kit %s."))))
 
 (defun project-cmake-edit-settings (variable)
