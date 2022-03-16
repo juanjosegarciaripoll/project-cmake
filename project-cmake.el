@@ -735,16 +735,14 @@ scratch, preserving the existing configuration."
   (interactive)
   (require 'comint)
   (let ((default-directory (project-root (project-current t)))
-		(gud-gdb-command-name gud-gdb-command-name)
 		(target (project-cmake-api-choose-executable-file))
         (process-environment (project-cmake-kit-debug-environment))
 		(gdb-executable (project-cmake-kit-value :gdb)))
-	(cond (gdb-executable
-		   (gdb (setq gud-gdb-command-name (concat gdb-executable " -q -i=mi " target))))
-		  ((y-or-n-p (format "No GDB installed in kit %s. Use default value \"%s\"?"
-							 (project-cmake-kit-name)
-							 old-gdb-command-name))
-		   (gdb gud-gdb-command-name)))))
+	(if gdb-executable
+		(if (eq system-type 'windows-nt)
+			(gud-gdb (concat gdb-executable " --fullname " target))
+		  (gud-gdb (concat gdb-executable " -i=mi " target)))
+	  (error "No GDB installed in kit %s."))))
 
 (defun project-cmake-edit-settings (variable)
   (interactive (list (completing-read "Project variable: "
