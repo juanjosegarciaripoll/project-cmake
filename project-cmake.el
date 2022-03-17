@@ -763,6 +763,13 @@ on the Windows platform."
   (interactive)
   (project-local-save-records all-projects))
 
+(defun project-cmake-load-settings (&optional no-confirm)
+  (interactive)
+  (let ((current-project (project-current t)))
+	(when (or no-confirm (y-or-n-p (format "Reload settings for project %s"
+										   current-project)))
+	  (project-local-load-record current-project))))
+
 
 ;;
 ;; Default key bindings into the `project` map
@@ -774,6 +781,7 @@ on the Windows platform."
 (define-key project-prefix-map "SK" 'project-cmake-select-kit)
 (define-key project-prefix-map "SE" 'project-cmake-edit-settings)
 (define-key project-prefix-map "SS" 'project-cmake-save-settings)
+(define-key project-prefix-map "SL" 'project-cmake-load-settings)
 (define-key project-prefix-map "U" 'project-cmake-debug)
 
 (provide 'project-cmake)
