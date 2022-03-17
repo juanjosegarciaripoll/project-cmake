@@ -65,8 +65,11 @@ used during the manipulation of a project.")
 (defun project-local-new-record (project)
   (list (cons :filename (project-local-file-name project))))
 
-(defun project-local-add-record (project record)
-  (push (cons project record) project-local-cache)
+(defun project-local-set-record (project record)
+  (let ((previous (assoc project project-local-cache)))
+	(if previous
+		(rplacd previous record)
+	  (push (cons project record) project-local-cache)))
   record)
 
 (defun project-local-remove-record (project)
@@ -100,7 +103,7 @@ used during the manipulation of a project.")
 from the cache or read from a project's local variables file. If it does
 not exists, it creates a new record that is added to the cache."
   (or (project-local-cached-record project)
-	  (project-local-add-record project (project-local-read-definitions project))))
+	  (project-local-load-definitions current-project)))
 
 (defun project-local-cached-record (project)
   "Return the existing record of a project, if it exists, or NIL if it doesn't."
@@ -113,17 +116,20 @@ not exist."
   (let* ((file-name (project-local-file-name project))
 		 (record (project-local-new-record project)))
 	(when (file-exists-p file-name)
-	  (condition-case nil
+	  (condition-case condition
 		  (with-temp-buffer
 			(insert-file file-name)
 			(let ((buf (current-buffer))
 				  sexp)
 			  (while (setq sexp (read buf))
 				(cl-destructuring-bind (statement variable &optional value)
-					(when (eq statement 'defvar)
-					  (project-local-record-set record variable (eval value)))))
+					sexp
+				  (when (eq statement 'defvar)
+					(project-local-record-set record variable (eval value)))))
 			  output))
-		(error (message "Ill-formed project-local file %s" file-name))))
+		(end-of-file)
+		(error (message "Ill-formed project-local file %s.\nCondition: %S"
+						file-name condition))))
 	record))
 
 (defun project-local-write-definitions (project record)
@@ -183,6 +189,10 @@ Otherwise it saves variables from all projects."
 	(let* ((project (project-current t))
 		   (record (project-local-record project)))
 	  (project-local-save-project project record))))
+
+(defun project-local-load-record (project)
+  "Load a project's record from a .project.el, or return a new record for it."
+  (project-local-set-record project (project-local-read-definitions project)))
 
 (defun project-local-clear (&optional project)
   (interactive)
