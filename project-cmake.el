@@ -626,10 +626,11 @@ it will contain all files for CTest."
           (setq output dir))))
     (project-cmake-kit-convert-path output)))
 
-(defun project-cmake-kit-ctest-command ()
-  "Return the command line to run CTest in the right directory."
+(defun project-cmake-kit-ctest-command (&optional verbose)
+  "Return the command line to run CTest in the right directory,
+possibly in VERBOSE mode."
   (let* ((ctest-directory (project-cmake-kit-cmake-find-test-directory))
-		 (ctest-args (list "--test-dir" ctest-directory))
+		 (ctest-args (cl-list* "--test-dir" ctest-directory (and verbose '("-VV"))))
 		 (ctest (or (project-cmake-kit-value :ctest)
 					(error "Cannot find CTest in current kit %s"
 						   (project-cmake-kit-name)))))
@@ -683,15 +684,15 @@ scratch, preserving the existing configuration."
 	(error "Cannot build project that has not been configured first."))
   (project-cmake-kit-compile (project-cmake-kit-install-command)))
 
-(defun project-cmake-test ()
+(defun project-cmake-test (&optional verbose)
   "Run the tests in a using CTest and the current kit."
-  (interactive)
+  (interactive "P")
   (unless (project-cmake-ensure-configured)
 	(error "Cannot build project that has not been configured first."))
   (let* ((default-directory (project-cmake-build-directory))
 		 (buffer-name (format "*CTest %s*" default-directory))
 		 (compilation-buffer-name-function (lambda (mode) buffer-name)))
-	(project-cmake-kit-compile (project-cmake-kit-ctest-command))
+	(project-cmake-kit-compile (project-cmake-kit-ctest-command verbose))
     (switch-to-buffer-other-window (get-buffer buffer-name))))
 
 (defun project-cmake-shell ()
