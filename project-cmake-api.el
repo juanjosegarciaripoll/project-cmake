@@ -54,8 +54,6 @@
 (defun project-cmake-api-prepare-query-file ()
   (let* ((query-filename (project-cmake-api-query-filename))
 		 (directory (file-name-directory query-filename)))
-	(message "Directory: %s" directory)
-	(message "File: %s -> %s" query-filename (file-exists-p query-filename))
 	(unless (file-exists-p query-filename)
 	  (unless (file-exists-p directory)
 		(mkdir directory 'parents))
@@ -115,10 +113,12 @@
 	artifact))
 
 (defun project-cmake-api-current-buffer-target ()
-  (let* ((file-name (expand-file-name (buffer-file-name (current-buffer))))
-		 (database (project-cmake-api-project-database)))
-	(and database
-		 (gethash file-name (project-cmake-targets-sources database) nil))))
+  (let* ((file-name (buffer-file-name (current-buffer))))
+	(when file-name
+	  (let ((file-name (expand-file-name file-name))
+			(database (project-cmake-api-project-database)))
+		(and database
+			 (gethash file-name (project-cmake-targets-sources database) nil))))))
 
 (defun project-cmake-api-choose-target ()
   "Select by name one of CMake's build targets. Returns target's name."
