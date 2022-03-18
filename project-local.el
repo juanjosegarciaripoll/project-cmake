@@ -103,7 +103,7 @@ used during the manipulation of a project.")
 from the cache or read from a project's local variables file. If it does
 not exists, it creates a new record that is added to the cache."
   (or (project-local-cached-record project)
-	  (project-local-load-definitions current-project)))
+	  (project-local-read-definitions project)))
 
 (defun project-local-cached-record (project)
   "Return the existing record of a project, if it exists, or NIL if it doesn't."
