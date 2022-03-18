@@ -103,7 +103,7 @@ used during the manipulation of a project.")
 from the cache or read from a project's local variables file. If it does
 not exists, it creates a new record that is added to the cache."
   (or (project-local-cached-record project)
-	  (project-local-read-definitions project)))
+	  (project-local-load-record project)))
 
 (defun project-local-cached-record (project)
   "Return the existing record of a project, if it exists, or NIL if it doesn't."
@@ -157,7 +157,9 @@ bound value for that symbol."
 (defun project-local-set (project variable value)
   "Assign a project-local VARIABLE a VALUE. It may create a new record in the
 project-local cache, that will have to be saved later on."
+  (message "%S" value)
   (let ((record (project-local-record project)))
+	(message "%S" value)
 	(project-local-record-set record variable value)
 	(project-local-record-mark-as-changed record)
 	value))
