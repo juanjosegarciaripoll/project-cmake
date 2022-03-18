@@ -157,9 +157,7 @@ bound value for that symbol."
 (defun project-local-set (project variable value)
   "Assign a project-local VARIABLE a VALUE. It may create a new record in the
 project-local cache, that will have to be saved later on."
-  (message "%S" value)
   (let ((record (project-local-record project)))
-	(message "%S" value)
 	(project-local-record-set record variable value)
 	(project-local-record-mark-as-changed record)
 	value))
