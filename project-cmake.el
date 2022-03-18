@@ -68,7 +68,8 @@
 (defcustom project-cmake-variables
   '(project-cmake-build-type
 	project-cmake-configuration-arguments
-	project-cmake-generator)
+	project-cmake-generator
+	project-cmake-jobs)
   "List of project-local variables that can be edited by the user")
 
 (defcustom project-cmake-build-type "Debug"
@@ -98,7 +99,8 @@ project."
   "Number of jobs to use for building CMake projects.  If NIL,
 this option is ignored.  Otherwise it should be an integer larger
 than 0."
-  :type '(or null integer)
+  :type '(choice (const nil :tag "No parallelization")
+				 (integer :tag "Number of jobs"))
   :safe (lambda (x) (or (null x) (and (integerp x) (>= x 1)))))
 
 (defcustom project-cmake-msys2-root "c:/msys64"
@@ -574,14 +576,19 @@ other environment flags."
 CMake.  The function guesses the project source directory, project
 build directory (see `project-cmake-build-directory-name`) and
 the CMake generator."
-  (apply #'project-cmake-kit-cmake-command
-         "-G" (project-cmake-guess-generator)
-		 (concat "-DCMAKE_BUILD_TYPE:STRING=" (project-cmake-build-type))
-		 "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
-         (concat "-S" (project-cmake-kit-source-directory))
-         (concat "-B" (project-cmake-kit-build-directory))
-		 (project-cmake-parse-configuration-arguments)
-         ))
+  (let ((project-cmake-jobs (project-local-value (project-current t)
+												 'project-cmake-jobs))
+		(args (project-cmake-parse-configuration-arguments)))
+	(when project-cmake-jobs
+      (setq args (cl-list* "-j" (format "%s" project-cmake-jobs)
+                           args)))
+	(apply #'project-cmake-kit-cmake-command
+           "-G" (project-cmake-guess-generator)
+		   (concat "-DCMAKE_BUILD_TYPE:STRING=" (project-cmake-build-type))
+		   "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"
+           (concat "-S" (project-cmake-kit-source-directory))
+           (concat "-B" (project-cmake-kit-build-directory))
+		   args)))
 
 (defun project-cmake-ensure-configured ()
   "Ensure that the project has been configured before building it."
@@ -595,11 +602,8 @@ the CMake generator."
   "Return the command line to build the project using CMake.  If
 CLEAN is not NIL, specify that the project is recompiled from
 scratch."
-  (let ((args (list "--build" (project-cmake-kit-build-directory)
-					"--target" target)))
-    (when project-cmake-jobs
-      (setq args (append (list "-j" (format "%s" project-cmake-jobs))
-                         args)))
+  (let* ((args (list "--build" (project-cmake-kit-build-directory)
+					 "--target" target)))
     (when clean
       (setq args (append args (list "--clean-first"))))
     (apply #'project-cmake-kit-cmake-command args)))
@@ -609,9 +613,6 @@ scratch."
 CLEAN is not NIL, specify that the project is recompiled from
 scratch."
   (let ((args (list "--install" (project-cmake-kit-build-directory))))
-    (when project-cmake-jobs
-      (setq args (append (list "-j" (format "%s" project-cmake-jobs))
-                         args)))
     (apply #'project-cmake-kit-cmake-command args)))
 
 (defun project-cmake-kit-cmake-find-test-directory ()
@@ -629,11 +630,16 @@ it will contain all files for CTest."
 (defun project-cmake-kit-ctest-command (&optional verbose)
   "Return the command line to run CTest in the right directory,
 possibly in VERBOSE mode."
-  (let* ((ctest-directory (project-cmake-kit-cmake-find-test-directory))
+  (let* ((project-cmake-jobs (project-local-value (project-current t)
+												 'project-cmake-jobs))
+		 (ctest-directory (project-cmake-kit-cmake-find-test-directory))
 		 (ctest-args (cl-list* "--test-dir" ctest-directory (and verbose '("-VV"))))
 		 (ctest (or (project-cmake-kit-value :ctest)
 					(error "Cannot find CTest in current kit %s"
 						   (project-cmake-kit-name)))))
+	(when project-cmake-jobs
+      (setq ctest-args
+			(cl-list* "-j" (format "%s" project-cmake-jobs) ctest-args)))
 	(cl-list* ctest ctest-args)))
 
 (defun project-cmake-remove-build-directory ()
