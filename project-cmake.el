@@ -576,12 +576,7 @@ other environment flags."
 CMake.  The function guesses the project source directory, project
 build directory (see `project-cmake-build-directory-name`) and
 the CMake generator."
-  (let ((project-cmake-jobs (project-local-value (project-current t)
-												 'project-cmake-jobs))
-		(args (project-cmake-parse-configuration-arguments)))
-	(when project-cmake-jobs
-      (setq args (cl-list* "-j" (format "%s" project-cmake-jobs)
-                           args)))
+  (let ((args (project-cmake-parse-configuration-arguments)))
 	(apply #'project-cmake-kit-cmake-command
            "-G" (project-cmake-guess-generator)
 		   (concat "-DCMAKE_BUILD_TYPE:STRING=" (project-cmake-build-type))
@@ -602,8 +597,13 @@ the CMake generator."
   "Return the command line to build the project using CMake.  If
 CLEAN is not NIL, specify that the project is recompiled from
 scratch."
-  (let* ((args (list "--build" (project-cmake-kit-build-directory)
+  (let* ((project-cmake-jobs (project-local-value (project-current t)
+												 'project-cmake-jobs))
+		 (args (list "--build" (project-cmake-kit-build-directory)
 					 "--target" target)))
+	(when project-cmake-jobs
+      (setq args (append args
+						 (list "--parallel" (format "%s" project-cmake-jobs)))))
     (when clean
       (setq args (append args (list "--clean-first"))))
     (apply #'project-cmake-kit-cmake-command args)))
@@ -633,7 +633,8 @@ possibly in VERBOSE mode."
   (let* ((project-cmake-jobs (project-local-value (project-current t)
 												 'project-cmake-jobs))
 		 (ctest-directory (project-cmake-kit-cmake-find-test-directory))
-		 (ctest-args (cl-list* "--test-dir" ctest-directory (and verbose '("-VV"))))
+		 (ctest-args (cl-list* "--test-dir" ctest-directory "--output-on-failure"
+							   (and verbose '("-VV"))))
 		 (ctest (or (project-cmake-kit-value :ctest)
 					(error "Cannot find CTest in current kit %s"
 						   (project-cmake-kit-name)))))
