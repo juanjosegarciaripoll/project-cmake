@@ -40,6 +40,8 @@
 ;;
 
 (require 'project)
+(require 'wid-edit) ;; widget-convert
+(require 'cus-edit) ;; custom-variable-type
 
 (defcustom project-local-confirm-save t
   "Ask for confirmation before saving a project's variable file.")
