@@ -92,7 +92,8 @@ project."
 
 (defcustom project-cmake-generator nil
   "CMake generator and driver."
-  :type '(or nil string)
+  :type '(choice (const nil :tag "No parallelization")
+				 (string :tag "Generator"))
   :safe (lambda (x) (or (stringp x) (null x))))
 
 (defcustom project-cmake-jobs nil
@@ -228,7 +229,6 @@ message about ioctl that can be ignored.")
   (lambda (function-to-call)
 	(let* ((explicit-shell-file-name "wsl.exe")
 		   (explicit-wsl.exe-args (cl-list* "-d" wsl-type project-cmake-wsl-shell-args)))
-	  (message "%S %S" explicit-shell-file-name explicit-wsl.exe-args)
 	  (funcall function-to-call))))
 
 (defun project-cmake-wsl-path (path)
@@ -345,6 +345,74 @@ message about ioctl that can be ignored.")
 
 
 ;;;
+;;; INTEGRATION WITH VISUAL STUDIO
+;;;
+;;;
+
+(defvar project-cmake-msvc-kits nil)
+
+(defun project-cmake-msvc-find-kits ()
+  (let* ((program-files (getenv "ProgramFiles"))
+		 (program-files-x86 (getenv "ProgramFiles(x86)"))
+		 (roots (append (and program-files (list program-files))
+						(and program-files-x86 (list program-files-x86))))
+		 (versions '(("vs17-buildtools" . "2017/BuildTools/")
+					 ("vs17-community" . "2017/Community/")
+					 ("vs22-buildtools" . "2022/BuildTools/")
+					 ("vs22-community" . "2022/Community/")))
+		 (architectures '(("-32" . "vcvars32.bat")
+						  ("-64" . "vcvars64.bat")))
+		 kits)
+	(dolist (root roots)
+	  (dolist (version versions)
+		(dolist (arch architectures)
+		  (let ((path (format "%s/Microsoft Visual Studio/%s/VC/Auxiliary/Build/%s"
+							  root (cdr version) (cdr arch)))
+				(name (intern (format "%s%s" (car version) (car arch)))))
+			(when (file-exists-p path)
+			  (push (cons name (subst-char-in-string ?\\ ?/ path)) kits))))))
+	(setq project-cmake-msvc-kits kits)))
+
+(defun project-cmake-msvc-vcvars (type)
+  (or (cdr (assoc type project-cmake-msvc-kits))
+	  (error "No Microsoft Visual Studio kit of type %s" type)))
+
+(defun project-cmake-guess-msvc-environment (type)
+  "Guess the environment variables from the MSVC shell, for the
+given TYPE of MSVC build.  It can be one of the symbols msys,
+mingw64, mingw32 or ucrt64."
+  (let* ((default-environment (project-cmake-guess-environment))
+		 (batch-file (project-cmake-msvc-vcvars type))
+		 (env-command (format "call \"%s\" && set" batch-file))
+         (msvc-environment
+          (project-cmake-guess-environment "cmdproxy.exe" "/c" env-command)))
+    (cl-set-difference msvc-environment default-environment)))
+
+(defun project-cmake-msvc-shell-launcher (type)
+  (and (assoc type project-cmake-msvc-kits)
+	   (lambda (function-to-call)
+		 (let* ((default-directory (expand-file-name (project-cmake-kit-source-directory)))
+				(process-environment (project-cmake-kit-value :environment type process-environment)))
+		   (funcall function-to-call)))))
+
+(defun project-cmake-msvc-kits ()
+  (let* ((all-kit-names (mapcar #'car (project-cmake-msvc-find-kits)))
+		 all-kits)
+    (dolist (kit-name all-kit-names)
+	  ;; Identification of the system may fail
+	  (condition-case condition
+		  (let* ((process-environment (project-cmake-guess-msvc-environment kit-name))
+				 (shell-launcher (project-cmake-msvc-shell-launcher kit-name))
+				 (exec-path (split-string (getenv "PATH") ";")))
+			(push (project-cmake-build-kit (symbol-name kit-name)
+										   process-environment shell-launcher)
+				  all-kits))
+		(error (message "Failed when configuring kit %s with condition %s"
+						kit-name condition)))
+	  all-kits)))
+
+
+;;;
 ;;; INTEGRATION WITH UNIX
 ;;;
 ;;; The unix environments are comparatively simple.  We just need to scan *one*
@@ -372,6 +440,9 @@ message about ioctl that can be ignored.")
 			   (name)
 			   (funcall (or exec-find 'executable-find) name)))
 	`(,(intern kit-name)
+      ,@(if (kit-exec-find "ninja")
+			`(:cmake-generator "Ninja")
+		  `(:cmake-generator "Unix Makefiles"))
 	  ,@(and environment
 			 `(:environment ,environment))
       ,@(let* ((cmake (kit-exec-find "cmake")))
@@ -388,9 +459,6 @@ message about ioctl that can be ignored.")
                `(:gdb ,gdb)))
 	  ,@(and shell-launcher
 			 `(:shell ,shell-launcher))
-      ,@(if (kit-exec-find "ninja")
-			`(:cmake-generator "Ninja")
-		  `(:cmake-generator "Unix Makefiles"))
       )))
 
 
@@ -408,7 +476,8 @@ message about ioctl that can be ignored.")
   (let (all-kits)
 	(when (eq system-type 'windows-nt)
 	  (setq all-kits (append (project-cmake-msys2-kits)
-							 (project-cmake-wsl-kits))))
+							 (project-cmake-wsl-kits)
+							 (project-cmake-msvc-kits))))
 	(when (member system-type '(gnu gnu/linux gnu/kfreebsd darwin))
 	  (setq all-kits (project-cmake-unix-kits)))
     (unless all-kits
@@ -550,7 +619,7 @@ other environment flags."
 ;;;
 
 (defun project-cmake-guess-generator ()
-  (or project-cmake-generator
+  (or (project-local-value (project-current t) 'project-cmake-generator)
       (project-cmake-kit-value :cmake-generator)
       "Makefiles"))
 

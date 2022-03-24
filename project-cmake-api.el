@@ -100,7 +100,10 @@
 			(plist-get target :artifacts))))
 
 (defun project-cmake-api-project-database ()
-  (project-local-value (project-current t) :cmake-targets))
+  (let ((output (project-local-value (project-current t) :cmake-targets)))
+	(when (eq output :cmake-targets)
+	  (error "This project must be configured before building it"))
+	output))
 
 (defun project-cmake-api-target-executable-file (target)
   (let* ((nameOnDisk (project-cmake-api-target-nameOnDisk target))
