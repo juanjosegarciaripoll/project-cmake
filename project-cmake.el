@@ -763,10 +763,23 @@ on the Windows platform."
 		  (gdb (project-cmake-kit-wrap (list gdb-executable "-i=mi" target))))
 	  (error "No GDB installed in kit %s."))))
 
+(defun project-cmake-run-target ()
+  "selecting target and run it inside a compilation-mode buffer."
+  (interactive)
+  (require 'comint)
+  (let* ((default-directory (project-root (project-current t)))
+         (buffer-name (format "*Run Target %s*" default-directory))
+         (compilation-buffer-name-function (lambda (mode) buffer-name))
+         (target (project-cmake-kit-convert-path
+                  (project-cmake-api-choose-executable-file)))
+         (process-environment (project-cmake-kit-debug-environment))
+         )
+    (compile (project-cmake-kit-wrap (list target)) (get-buffer buffer-name))))
+
 (defun project-cmake-edit-settings (variable)
   (interactive (list (completing-read "Project variable: "
-									  project-cmake-variables
-									  nil t)))
+   				      project-cmake-variables
+   				      nil t)))
   (project-local-edit (project-current t) (intern variable)))
 
 (defun project-cmake-save-settings (&optional all-projects)
