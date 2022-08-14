@@ -774,7 +774,7 @@ on the Windows platform."
                   (project-cmake-api-choose-executable-file)))
          (process-environment (project-cmake-kit-debug-environment))
          )
-    (compile (project-cmake-kit-wrap (list target)) (get-buffer buffer-name))))
+    (compile (project-cmake-kit-wrap (list target)))))
 
 (defun project-cmake-edit-settings (variable)
   (interactive (list (completing-read "Project variable: "
