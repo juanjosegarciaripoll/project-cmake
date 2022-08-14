@@ -115,10 +115,12 @@
 	artifact))
 
 (defun project-cmake-api-current-buffer-target ()
-  (let* ((file-name (expand-file-name (buffer-file-name (current-buffer))))
-		 (database (project-cmake-api-project-database)))
-	(and database
-		 (gethash file-name (project-cmake-targets-sources database) nil))))
+  (if (buffer-file-name (current-buffer))
+      (let* ((file-name (expand-file-name (buffer-file-name (current-buffer))))
+		     (database (project-cmake-api-project-database)))
+	    (and database
+		     (gethash file-name (project-cmake-targets-sources database) nil)))
+    nil))
 
 (defun project-cmake-api-choose-target ()
   "Select by name one of CMake's build targets. Returns target's name."
@@ -147,7 +149,7 @@
 (defun project-cmake-api-read-targets (reply-files)
   (let ((source-directory (project-cmake-source-directory))
 		(sources (make-hash-table :test 'equal))
-		(all-target-names '("all" "clean"))
+		(all-target-names (list "all" "clean"))
 		executables
 		libraries
 		all-targets)

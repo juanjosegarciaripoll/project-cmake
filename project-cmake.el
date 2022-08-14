@@ -678,7 +678,7 @@ scratch, preserving the existing configuration."
   "Build a project tree using CMake and the current kit.  If
 provided an argument, it can recompile the whole project from
 scratch, preserving the existing configuration."
-  (interactive "P")
+  (interactive)
   (unless (project-cmake-ensure-configured)
 	(error "Cannot build project that has not been configured first."))
   (project-cmake-kit-compile (project-cmake-kit-install-command)))
