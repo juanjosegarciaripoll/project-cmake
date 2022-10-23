@@ -351,18 +351,28 @@ message about ioctl that can be ignored.")
 
 (defun project-cmake-unix-kits ()
   (let* ((all-kits (list (project-cmake-build-kit "unix")))
-		 (compiler-names '("gcc" "clang" "icc"))
-		 (all-compilers (delq nil (mapcar 'executable-find compiler-names))))
-	(when (> (length all-compilers) 1)
-	  ;; If there are multiple compilers, create specialized kits
+         (compiler-alist '(("gcc" . (("cc" . "gcc")
+                                     ("cxx" . "g++")))
+                           ("clang" . (("cc" . "clang")
+                                       ("cxx" . "clang++")))
+                           ("icc" . (("cc" . "icc")
+                                     ("cxx" . "icpc")))))
+         (compiler-names (mapcar #'car compiler-alist))
+
+         (all-compilers (delq nil (mapcar 'executable-find compiler-names))))
+    (when (> (length all-compilers) 1)
+      ;; If there are multiple compilers, create specialized kits
       (dolist (compiler all-compilers)
-		(let* ((kit-name (concat "unix-" (file-name-base compiler)))
-			   (environment (cl-list* (format t "CC=%s" compiler)
-									  (format t "CXX=%s" compiler)
-									  project-environment)))
+        (let* ((kit-name (concat "unix-" (file-name-base compiler)))
+               (compiler-set (cdr (assoc (file-name-base compiler) compiler-alist)))
+               (cc-compiler (cdr (assoc "cc" compiler-set)))
+               (cxx-compiler (cdr (assoc "cxx" compiler-set)))
+               (environment (cl-list* (format "CC=%s" (executable-find cc-compiler))
+                                      (format "CXX=%s" (executable-find cxx-compiler))
+                                      process-environment)))
           (push (project-cmake-build-kit kit-name environment)
-				all-kits))))
-	all-kits))
+                all-kits))))
+    all-kits))
 
 (defun project-cmake-build-kit (kit-name &optional environment shell-launcher
 										 exec-find)
@@ -753,10 +763,23 @@ on the Windows platform."
 		  (gdb (project-cmake-kit-wrap (list gdb-executable "-i=mi" target))))
 	  (error "No GDB installed in kit %s."))))
 
+(defun project-cmake-run-target ()
+  "selecting target and run it inside a compilation-mode buffer."
+  (interactive)
+  (require 'comint)
+  (let* ((default-directory (project-root (project-current t)))
+         (buffer-name (format "*Run Target %s*" default-directory))
+         (compilation-buffer-name-function (lambda (mode) buffer-name))
+         (target (project-cmake-kit-convert-path
+                  (project-cmake-api-choose-executable-file)))
+         (process-environment (project-cmake-kit-debug-environment))
+         )
+    (compile (project-cmake-kit-wrap (list target)))))
+
 (defun project-cmake-edit-settings (variable)
   (interactive (list (completing-read "Project variable: "
-									  project-cmake-variables
-									  nil t)))
+   				      project-cmake-variables
+   				      nil t)))
   (project-local-edit (project-current t) (intern variable)))
 
 (defun project-cmake-save-settings (&optional all-projects)
