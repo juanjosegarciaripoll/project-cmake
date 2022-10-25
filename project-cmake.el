@@ -58,6 +58,7 @@
 ;; hooks into `eglot-ensure` and updates `eglot-server-programs`.
 ;;
 
+(require 'shell)
 (require 'project)
 (require 'project-local)
 (require 'project-cmake-api)
@@ -166,7 +167,7 @@ at the root of the project's directory."
       (unless (zerop (apply #'call-process program nil (current-buffer) nil args))
 		(error "Unable to guess environment values from %s" program))
       (goto-char (point-min))
-      (while (re-search-forward "^[A-Za-z0-9_]*=.*$" nil t)
+      (while (re-search-forward "^[A-Za-z0-9_]*=..*$" nil t)
         (push (match-string-no-properties 0) output)))
     output))
 
@@ -557,7 +558,7 @@ selected kit, or NIL if it does not exist."
 		 (compilation-buffer-name-function
           (or project-compilation-buffer-name-function
               compilation-buffer-name-function))
-		 (default-directory (project-root (project-current t))))
+		 (default-directory (project-cmake-source-directory)))
 	(message "compile-command: %S" compile-command)
 	(if interactive-p
 		(call-interactively #'compile)
@@ -787,7 +788,7 @@ scratch, preserving the existing configuration."
   "Run a shell which is appropriate for the given compilation kit."
   (interactive)
   (require 'comint)
-  (let ((default-directory (project-root (project-current t)))
+  (let ((default-directory (project-cmake-source-directory))
 		(shell-launcher (project-cmake-kit-value :shell)))
 	(if shell-launcher
 		(funcall shell-launcher 'project-shell-fix)
@@ -797,7 +798,7 @@ scratch, preserving the existing configuration."
   "Fixed version for project-shell"
   (interactive)
   (require 'comint)
-  (let* ((default-directory (expand-file-name (project-root (project-current t))))
+  (let* ((default-directory (project-cmake-source-directory))
          (default-project-shell-name (project-prefixed-buffer-name "shell"))
          (shell-buffer (get-buffer default-project-shell-name)))
 	(if (comint-check-proc shell-buffer)
@@ -831,7 +832,7 @@ Note: This function defaults to calling the old interface GUD-GDB
 on the Windows platform."
   (interactive)
   (require 'comint)
-  (let ((default-directory (project-root (project-current t)))
+  (let ((default-directory (project-cmake-source-directory))
 		(target (project-cmake-kit-convert-path
 				 (project-cmake-api-choose-executable-file)))
         (process-environment (project-cmake-kit-debug-environment))
@@ -846,7 +847,7 @@ on the Windows platform."
   "selecting target and run it inside a compilation-mode buffer."
   (interactive)
   (require 'comint)
-  (let* ((default-directory (project-root (project-current t)))
+  (let* ((default-directory (project-cmake-source-directory))
          (buffer-name (format "*Run Target %s*" default-directory))
          (compilation-buffer-name-function (lambda (mode) buffer-name))
          (target (project-cmake-kit-convert-path
