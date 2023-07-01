@@ -5,7 +5,7 @@
 ;; Maintainer: Juan Jose Garcia-Ripoll <juanjose.garciaripoll@gmail.com>
 ;; URL: https://github.com/juanjosegarciaripoll/project-cmake
 ;; Keywords: convenience, languages
-;; Package-Requires: ((emacs "26.1") (project "0.3.0"))
+;; Package-Requires: ((emacs "26.1") (project "0.3.0") project-local project-cmake-api)
 
 ;; MIT License
 
